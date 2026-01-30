@@ -1,0 +1,15 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./data/vector_db:/qdrant/storage
+    restart: unless-stopped
+
+  embedding:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.2
+    ports:
+      - "8001:80"
+    command: --model-id sentence-transformers/all-MiniLM-L6-v2
+    restart: unless-stopped

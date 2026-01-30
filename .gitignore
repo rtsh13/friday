@@ -1,0 +1,45 @@
+# Binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go build artifacts
+*.test
+*.out
+
+# Dependencies
+/vendor/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data directories (large files)
+data/raw-docs/
+data/processed/
+data/vector_db/
+
+# ONNX models (large files)
+internal/rag/models/*.onnx
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Logs
+*.log
+
+# Docker volumes
+docker-volumes/
+
+# Environment files
+.env

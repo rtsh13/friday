@@ -1,0 +1,451 @@
+version: "1.0"
+metadata:
+  last_updated: "2024-01-29"
+  total_functions: 15
+
+functions:
+  # ==================== DEBUGGING ====================
+  
+  - name: analyze_core_dump
+    description: "Analyze a core dump file using GDB to identify crash cause"
+    category: debugging
+    phase: analyze
+    reversible: false
+    parameters:
+      - name: core_path
+        type: string
+        required: true
+        description: "Absolute path to the core dump file"
+        validation: "^/.+\\.core$"
+      - name: binary_path
+        type: string
+        required: false
+        description: "Path to the binary executable"
+    outputs:
+      crash_reason: string
+      signal: string
+      backtrace: array
+      thread_count: integer
+    timeout_seconds: 60
+    
+  - name: analyze_memory_leak
+    description: "Monitor process memory usage to detect memory leaks"
+    category: debugging
+    phase: analyze
+    reversible: false
+    parameters:
+      - name: pid
+        type: integer
+        required: true
+        description: "Process ID to monitor"
+        validation: "1-99999"
+      - name: duration
+        type: integer
+        required: false
+        default: 60
+        description: "Monitoring duration in seconds"
+        validation: "10-600"
+      - name: interval
+        type: integer
+        required: false
+        default: 5
+        description: "Sampling interval in seconds"
+    outputs:
+      leak_detected: boolean
+      growth_rate_mb_per_hour: float
+      samples: array
+    timeout_seconds: 610
+    
+  - name: check_stream_backpressure
+    description: "Detect backpressure in streaming pipelines"
+    category: debugging
+    phase: analyze
+    reversible: false
+    parameters:
+      - name: pid
+        type: integer
+        required: true
+        description: "Process ID of streaming application"
+      - name: buffer_symbol
+        type: string
+        required: false
+        description: "Symbol name of buffer to inspect"
+    outputs:
+      backpressure_detected: boolean
+      buffer_utilization_percent: float
+      producer_rate_msgs_per_sec: float
+      consumer_rate_msgs_per_sec: float
+    timeout_seconds: 10
+  
+  # ==================== NETWORK / gRPC ====================
+  
+  - name: check_tcp_health
+    description: "Analyze TCP connection health including retransmits and queue sizes"
+    category: network
+    phase: read
+    reversible: false
+    parameters:
+      - name: interface
+        type: string
+        required: true
+        description: "Network interface name (e.g., eth0)"
+        validation: "^[a-z0-9]+$"
+      - name: port
+        type: integer
+        required: true
+        description: "Port number to check"
+        validation: "1-65535"
+    outputs:
+      state: string
+      port: integer
+      interface: string
+      retransmits: integer
+      send_queue_bytes: integer
+      recv_queue_bytes: integer
+      recommended_buffer_size: integer
+    timeout_seconds: 5
+    
+  - name: check_grpc_health
+    description: "Check health status of a gRPC service"
+    category: network
+    phase: read
+    reversible: false
+    parameters:
+      - name: host
+        type: string
+        required: false
+        default: "localhost"
+        description: "gRPC server hostname"
+      - name: port
+        type: integer
+        required: true
+        description: "gRPC server port"
+        validation: "1-65535"
+      - name: timeout
+        type: integer
+        required: false
+        default: 5
+        description: "Connection timeout in seconds"
+        validation: "1-30"
+    outputs:
+      status: string
+      latency_ms: integer
+      services: array
+      error: string
+    timeout_seconds: 35
+    
+  - name: analyze_grpc_stream
+    description: "Capture and analyze gRPC streaming behavior"
+    category: network
+    phase: analyze
+    reversible: false
+    parameters:
+      - name: host
+        type: string
+        required: false
+        default: "localhost"
+      - name: port
+        type: integer
+        required: true
+        description: "gRPC server port"
+        validation: "1-65535"
+      - name: duration
+        type: integer
+        required: false
+        default: 10
+        description: "Capture duration in seconds"
+        validation: "1-60"
+    outputs:
+      stream_type: string
+      messages_sent: integer
+      messages_received: integer
+      dropped_count: integer
+      drop_percentage: float
+      flow_control_events: integer
+    timeout_seconds: 70
+    
+  - name: trace_grpc_calls
+    description: "Trace individual gRPC calls with detailed timing"
+    category: network
+    phase: analyze
+    reversible: false
+    parameters:
+      - name: host
+        type: string
+        required: false
+        default: "localhost"
+      - name: port
+        type: integer
+        required: true
+        validation: "1-65535"
+      - name: method_name
+        type: string
+        required: true
+        description: "gRPC method to trace"
+      - name: count
+        type: integer
+        required: false
+        default: 10
+        description: "Number of calls to trace"
+        validation: "1-100"
+    outputs:
+      total_calls: integer
+      successful_calls: integer
+      failed_calls: integer
+      average_latency_ms: float
+      p95_latency_ms: float
+    timeout_seconds: 30
+    
+  - name: capture_packets
+    description: "Capture network packets for analysis"
+    category: network
+    phase: analyze
+    reversible: false
+    parameters:
+      - name: interface
+        type: string
+        required: true
+        description: "Network interface to capture from"
+      - name: port
+        type: integer
+        required: false
+        description: "Port number to filter"
+        validation: "1-65535"
+      - name: count
+        type: integer
+        required: false
+        default: 100
+        description: "Number of packets to capture"
+        validation: "1-10000"
+    outputs:
+      packets_captured: integer
+      duration_seconds: float
+      protocols_seen: array
+    timeout_seconds: 60
+  
+  # ==================== SYSTEM ====================
+  
+  - name: inspect_network_buffers
+    description: "Inspect kernel network buffer settings and provide recommendations"
+    category: system
+    phase: read
+    reversible: false
+    parameters: []
+    outputs:
+      rmem_default: integer
+      rmem_max: integer
+      wmem_default: integer
+      wmem_max: integer
+      tcp_rmem: string
+      tcp_wmem: string
+      recommended_rmem_max: integer
+      warnings: array
+      recommendations: array
+    timeout_seconds: 2
+    
+  - name: execute_sysctl_command
+    description: "Modify kernel parameters using sysctl (REQUIRES CONFIRMATION)"
+    category: system
+    phase: modify
+    reversible: true
+    rollback_function: restore_sysctl_value
+    snapshot_required: true
+    destructive: true
+    parameters:
+      - name: parameter
+        type: string
+        required: true
+        description: "Kernel parameter to modify (must start with 'net.')"
+        validation: "^net\\..+"
+      - name: value
+        type: string
+        required: true
+        description: "New value for the parameter"
+      - name: persist
+        type: boolean
+        required: false
+        default: false
+        description: "Whether to persist to /etc/sysctl.conf"
+    outputs:
+      parameter: string
+      old_value: string
+      new_value: string
+      success: boolean
+      persisted: boolean
+    timeout_seconds: 5
+    requires_confirmation: true
+    
+  - name: restart_service
+    description: "Restart a system service (REQUIRES CONFIRMATION)"
+    category: system
+    phase: modify
+    reversible: true
+    rollback_function: restore_service_state
+    snapshot_required: true
+    destructive: true
+    parameters:
+      - name: service_name
+        type: string
+        required: true
+        description: "Name of the service to restart"
+        validation: "^[a-zA-Z0-9_-]+$"
+      - name: wait_for_ready
+        type: boolean
+        required: false
+        default: true
+        description: "Wait for service to become ready"
+      - name: timeout
+        type: integer
+        required: false
+        default: 30
+        description: "Timeout in seconds"
+        validation: "5-300"
+    outputs:
+      service_name: string
+      previous_state: string
+      current_state: string
+      restart_time_seconds: float
+      success: boolean
+    timeout_seconds: 305
+    requires_confirmation: true
+  
+  # ==================== TELEMETRY ====================
+  
+  - name: trace_gnmi_subscription
+    description: "Trace gNMI subscription messages and analyze data flow"
+    category: telemetry
+    phase: analyze
+    reversible: false
+    parameters:
+      - name: target
+        type: string
+        required: true
+        description: "gNMI target address (host:port)"
+        validation: "^[^:]+:\\d+$"
+      - name: subscription_path
+        type: string
+        required: true
+        description: "gNMI path to subscribe to"
+      - name: duration
+        type: integer
+        required: false
+        default: 30
+        description: "Duration to trace in seconds"
+        validation: "1-300"
+      - name: encoding
+        type: string
+        required: false
+        default: "JSON_IETF"
+        description: "Encoding format"
+        validation: "^(JSON_IETF|PROTO|ASCII)$"
+    outputs:
+      updates_received: integer
+      update_rate_per_second: float
+      paths_updated: array
+      errors: array
+      latency_stats: object
+    timeout_seconds: 310
+    
+  - name: validate_gnmi_path
+    description: "Validate a gNMI path against device schema"
+    category: telemetry
+    phase: read
+    reversible: false
+    parameters:
+      - name: target
+        type: string
+        required: true
+        description: "gNMI target address"
+      - name: path
+        type: string
+        required: true
+        description: "gNMI path to validate"
+    outputs:
+      valid: boolean
+      accessible: boolean
+      path_type: string
+      data_type: string
+      suggestions: array
+    timeout_seconds: 10
+  
+  # ==================== YANG ====================
+  
+  - name: parse_yang_model
+    description: "Parse and validate a YANG data model file"
+    category: yang
+    phase: analyze
+    reversible: false
+    parameters:
+      - name: model_path
+        type: string
+        required: true
+        description: "Path to YANG model file"
+        validation: "^/.+\\.yang$"
+      - name: validate_imports
+        type: boolean
+        required: false
+        default: true
+        description: "Whether to validate imported modules"
+    outputs:
+      valid: boolean
+      module_name: string
+      namespace: string
+      prefix: string
+      revision: string
+      imports: array
+      errors: array
+    timeout_seconds: 10
+    
+  - name: validate_yang_data
+    description: "Validate JSON/XML data against a YANG model schema"
+    category: yang
+    phase: analyze
+    reversible: false
+    parameters:
+      - name: model_path
+        type: string
+        required: true
+        description: "Path to YANG model file"
+        validation: "^/.+\\.yang$"
+      - name: data_file
+        type: string
+        required: true
+        description: "Path to data file (JSON or XML)"
+        validation: "^/.+\\.(json|xml)$"
+      - name: data_format
+        type: string
+        required: false
+        default: "json"
+        description: "Data format (json or xml)"
+        validation: "^(json|xml)$"
+    outputs:
+      valid: boolean
+      errors: array
+      violations: array
+    timeout_seconds: 15
+
+# ==================== ROLLBACK FUNCTIONS (INTERNAL) ====================
+# These are not exposed to LLM but used by transaction engine
+
+rollback_functions:
+  - name: restore_sysctl_value
+    description: "Internal rollback function to restore sysctl parameter"
+    internal: true
+    parameters:
+      - name: parameter
+        type: string
+        required: true
+      - name: value
+        type: string
+        required: true
+    
+  - name: restore_service_state
+    description: "Internal rollback function to restore service state"
+    internal: true
+    parameters:
+      - name: service_name
+        type: string
+        required: true
+      - name: state
+        type: string
+        required: true

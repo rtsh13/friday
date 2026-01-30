@@ -1,0 +1,32 @@
+qdrant:
+  host: localhost
+  port: 6333
+  collection: telemetry_docs
+
+rag:
+  top_k: 5
+  min_similarity: 0.7
+  max_context_length: 4000
+
+embedding:
+  endpoint: http://localhost:8001
+
+llm:
+  endpoint: http://localhost:8000/v1
+  model: Qwen/Qwen2.5-7B-Instruct
+  temperature: 0.1
+  max_tokens: 2048
+  timeout_seconds: 30
+
+executor:
+  default_strategy: stop_on_error
+  max_retries: 2
+  retry_backoff_seconds: 1
+
+conversation:
+  max_messages: 10
+  max_tokens: 4000
+
+logging:
+  level: info
+  format: json
