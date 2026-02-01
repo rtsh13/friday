@@ -13,3 +13,28 @@ services:
       - "8001:80"
     command: --model-id sentence-transformers/all-MiniLM-L6-v2
     restart: unless-stopped
+
+  vllm:
+    image: vllm/vllm-openai:v0.4.2  # ← CHANGED: Use older version
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - /workspace/outputs:/models
+    ports:
+      - "8000:8000"
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+    command: >
+      --model Qwen/Qwen2.5-7B-Instruct
+      --enable-lora
+      --lora-modules telemetry=/models/lora_adapter
+      --dtype auto
+      --max-model-len 8192
+      --gpu-memory-utilization 0.9
+    shm_size: '8gb'
+    restart: unless-stopped

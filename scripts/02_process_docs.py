@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import os
 import json
-import hashlib
 from pathlib import Path
 
 
@@ -11,6 +10,7 @@ class DocumentProcessor:
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.chunk_size = 512
         self.chunk_overlap = 50
+        self.chunk_counter = 0  # Add global counter
 
     def process_file(self, file_path):
         try:
@@ -35,10 +35,10 @@ class DocumentProcessor:
         processed = []
         category = self._categorize(source)
         for i, chunk in enumerate(chunks):
-            chunk_id = hashlib.md5(f"{source}{i}".encode()).hexdigest()[:16]
+            self.chunk_counter += 1  # Increment global counter
             processed.append(
                 {
-                    "id": chunk_id,
+                    "id": self.chunk_counter,  # Use integer ID
                     "content": chunk,
                     "metadata": {
                         "source": str(source),

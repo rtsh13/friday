@@ -9,11 +9,20 @@ def main():
         chunks = json.load(f)
     print(f"Loaded {len(chunks)} chunks")
 
+    # Verify embeddings exist
+    if "embedding" not in chunks[0]:
+        print("ERROR: No embeddings found in chunks!")
+        return
+
+    print(f"Embedding dimension: {len(chunks[0]['embedding'])}")
+
     client = QdrantClient(host="localhost", port=6333)
     collection = "telemetry_docs"
 
+    # Delete and recreate collection
     try:
         client.delete_collection(collection)
+        print("Deleted existing collection")
     except:
         pass
 
@@ -21,26 +30,34 @@ def main():
         collection_name=collection,
         vectors_config=VectorParams(size=384, distance=Distance.COSINE),
     )
-    print(f"Created collection")
+    print("Created collection")
 
-    points = [
-        PointStruct(
-            id=c["id"],
-            vector=c["embedding"],
+    # Create points with explicit vector field
+    points = []
+    for chunk in chunks:
+        point = PointStruct(
+            id=chunk["id"],
+            vector=chunk["embedding"],  # Must be a list of floats
             payload={
-                "content": c["content"],
-                "source": c["metadata"]["source"],
-                "category": c["metadata"]["category"],
+                "content": chunk["content"],
+                "source": chunk["metadata"]["source"],
+                "category": chunk["metadata"]["category"],
             },
         )
-        for c in chunks
-    ]
+        points.append(point)
 
-    for i in range(0, len(points), 100):
-        client.upsert(collection_name=collection, points=points[i : i + 100])
-        print(f"Indexed {min(i + 100, len(points))}/{len(points)}", end="\r")
+    # Upload in batches
+    batch_size = 100
+    for i in range(0, len(points), batch_size):
+        batch = points[i : i + batch_size]
+        client.upsert(collection_name=collection, points=batch)
+        print(f"Indexed {min(i + batch_size, len(points))}/{len(points)}", end="\r")
 
     print(f"\n✓ Indexed {len(points)} chunks")
+
+    # Verify
+    info = client.get_collection(collection)
+    print(f"Collection points: {info.points_count}")
 
 
 if __name__ == "__main__":
