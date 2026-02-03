@@ -90,6 +90,9 @@ func printConfig(cfg config.Config) {
 	valueStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#F9FAFB"))
 
+	dimStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#6B7280"))
+
 	fmt.Println(headerStyle.Render("cliche Configuration"))
 	fmt.Println()
 
@@ -101,5 +104,5 @@ func printConfig(cfg config.Config) {
 
 	path, _ := config.ConfigPath()
 	fmt.Println()
-	fmt.Printf("%s %s\n", keyStyle.Render("Config file:"), lipgloss.NewStyle().Foreground(lipgloss.Color("#6B7280")).Render(path))
+	fmt.Printf("%s %s\n", keyStyle.Render("Config file:"), dimStyle.Render(path))
 }

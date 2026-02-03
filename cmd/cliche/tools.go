@@ -42,11 +42,14 @@ func runTools() {
 	paramStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#06B6D4"))
 
+	dimStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#6B7280"))
+
 	fmt.Println(headerStyle.Render("Available Tools"))
 	fmt.Println()
 
 	for _, tool := range registry.All() {
-		fmt.Printf("  %s\n", toolStyle.Render("● "+tool.Name()))
+		fmt.Printf("  %s\n", toolStyle.Render("◆ "+tool.Name()))
 		fmt.Printf("    %s\n", descStyle.Render(tool.Description()))
 
 		params := tool.Parameters()
@@ -65,6 +68,6 @@ func runTools() {
 	}
 
 	if !verbose {
-		fmt.Println(descStyle.Render("  Use --verbose for parameter details"))
+		fmt.Println(dimStyle.Render("  Use --verbose for parameter details"))
 	}
 }
