@@ -1,179 +1,175 @@
 package rag
 
 import (
+	"context"
 	"fmt"
-	"sync"
+
+	"github.com/ashutoshrp06/telemetry-debugger/internal/types"
+	"github.com/qdrant/go-client/qdrant"
+	"go.uber.org/zap"
 )
 
-// EmbeddingClient handles text embedding using ONNX runtime.
-type EmbeddingClient struct {
-	runtime   *ONNXRuntime
-	tokenizer *BERTTokenizer
-	batchSize int
-	mu        sync.Mutex
+// Retriever handles document retrieval from Qdrant using ONNX embeddings.
+type Retriever struct {
+	client         *qdrant.Client
+	collectionName string
+	embedder       *EmbeddingClient
+	logger         *zap.Logger
 }
 
-// EmbeddingConfig holds configuration for the embedding client.
-type EmbeddingConfig struct {
-	ModelPath    string
-	VocabPath    string
-	MaxSeqLen    int
-	EmbeddingDim int
-	BatchSize    int
+// RetrieverConfig holds configuration for the retriever.
+type RetrieverConfig struct {
+	QdrantHost      string
+	QdrantPort      int
+	CollectionName  string
+	EmbeddingConfig EmbeddingConfig
 }
 
-// DefaultEmbeddingConfig returns default embedding configuration.
-func DefaultEmbeddingConfig() EmbeddingConfig {
-	return EmbeddingConfig{
-		ModelPath:    "./models/minilm-l6-v2.onnx",
-		VocabPath:    "./models/vocab.json",
-		MaxSeqLen:    128,
-		EmbeddingDim: 384,
-		BatchSize:    32,
-	}
-}
-
-// NewEmbeddingClient creates a new ONNX-based embedding client.
-func NewEmbeddingClient(cfg EmbeddingConfig) (*EmbeddingClient, error) {
-	// Initialize tokenizer
-	tokenizer, err := NewBERTTokenizer(cfg.VocabPath, cfg.MaxSeqLen)
+// NewRetriever creates a new retriever with ONNX embeddings.
+func NewRetriever(cfg RetrieverConfig, logger *zap.Logger) (*Retriever, error) {
+	// Connect to Qdrant
+	client, err := qdrant.NewClient(&qdrant.Config{
+		Host: cfg.QdrantHost,
+		Port: cfg.QdrantPort,
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create tokenizer: %w", err)
+		return nil, fmt.Errorf("failed to connect to Qdrant at %s:%d: %w",
+			cfg.QdrantHost, cfg.QdrantPort, err)
 	}
 
-	// Initialize ONNX runtime
-	runtime, err := NewONNXRuntime(cfg.ModelPath, cfg.EmbeddingDim, cfg.MaxSeqLen)
+	// Initialize ONNX embedder
+	embedder, err := NewEmbeddingClient(cfg.EmbeddingConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create ONNX runtime: %w", err)
+		return nil, fmt.Errorf("failed to create embedding client: %w", err)
 	}
 
-	batchSize := cfg.BatchSize
-	if batchSize <= 0 {
-		batchSize = 32
+	if logger == nil {
+		logger = zap.NewNop()
 	}
 
-	return &EmbeddingClient{
-		runtime:   runtime,
-		tokenizer: tokenizer,
-		batchSize: batchSize,
+	return &Retriever{
+		client:         client,
+		collectionName: cfg.CollectionName,
+		embedder:       embedder,
+		logger:         logger,
 	}, nil
 }
 
-// Embed generates embeddings for a list of texts.
-func (c *EmbeddingClient) Embed(texts []string) ([][]float32, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if len(texts) == 0 {
-		return nil, nil
-	}
-
-	// Process in batches
-	var allEmbeddings [][]float32
-
-	for i := 0; i < len(texts); i += c.batchSize {
-		end := i + c.batchSize
-		if end > len(texts) {
-			end = len(texts)
-		}
-		batch := texts[i:end]
-
-		embeddings, err := c.embedBatch(batch)
-		if err != nil {
-			return nil, fmt.Errorf("failed to embed batch %d: %w", i/c.batchSize, err)
-		}
-
-		allEmbeddings = append(allEmbeddings, embeddings...)
-	}
-
-	return allEmbeddings, nil
-}
-
-// EmbedSingle generates embedding for a single text.
-func (c *EmbeddingClient) EmbedSingle(text string) ([]float32, error) {
-	embeddings, err := c.Embed([]string{text})
+// Search performs semantic search on the Qdrant collection.
+func (r *Retriever) Search(ctx context.Context, query string, topK int, minScore float32) ([]types.RetrievedChunk, error) {
+	// Generate query embedding using ONNX
+	queryEmbedding, err := r.embedder.EmbedSingle(query)
 	if err != nil {
-		return nil, err
-	}
-	if len(embeddings) == 0 {
-		return nil, fmt.Errorf("no embedding generated")
-	}
-	return embeddings[0], nil
-}
-
-// embedBatch processes a single batch of texts.
-func (c *EmbeddingClient) embedBatch(texts []string) ([][]float32, error) {
-	// Tokenize all texts
-	tokenOutputs := c.tokenizer.EncodeBatch(texts)
-
-	// Prepare input arrays
-	inputIDs := make([][]int64, len(texts))
-	attentionMasks := make([][]int64, len(texts))
-
-	for i, output := range tokenOutputs {
-		inputIDs[i] = output.InputIDs
-		attentionMasks[i] = output.AttentionMask
+		return nil, fmt.Errorf("failed to embed query: %w", err)
 	}
 
-	// Run inference
-	embeddings, err := c.runtime.Embed(inputIDs, attentionMasks)
+	// Convert topK to uint64 pointer
+	limit := uint64(topK)
+
+	// Search Qdrant
+	searchResult, err := r.client.Query(ctx, &qdrant.QueryPoints{
+		CollectionName: r.collectionName,
+		Query:          qdrant.NewQuery(queryEmbedding...),
+		Limit:          &limit,
+		WithPayload:    qdrant.NewWithPayload(true),
+		ScoreThreshold: &minScore,
+	})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Qdrant search failed: %w", err)
 	}
 
-	return embeddings, nil
+	// Convert results to RetrievedChunk
+	chunks := make([]types.RetrievedChunk, 0, len(searchResult))
+	for _, result := range searchResult {
+		chunk := types.RetrievedChunk{
+			Score:    float64(result.Score),
+			Metadata: make(map[string]interface{}),
+		}
+
+		// Extract payload fields
+		if result.Payload != nil {
+			chunk.Metadata = convertPayload(result.Payload)
+
+			if content, ok := getPayloadString(result.Payload, "content"); ok {
+				chunk.Content = content
+			}
+			if source, ok := getPayloadString(result.Payload, "source"); ok {
+				chunk.Source = source
+			}
+			if category, ok := getPayloadString(result.Payload, "category"); ok {
+				chunk.Category = category
+			}
+		}
+
+		chunks = append(chunks, chunk)
+	}
+
+	r.logger.Info("Search completed",
+		zap.Int("results", len(chunks)),
+		zap.String("query_preview", truncateString(query, 50)),
+		zap.Float32("min_score", minScore))
+
+	return chunks, nil
 }
 
-// Close releases resources.
-func (c *EmbeddingClient) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.runtime != nil {
-		return c.runtime.Close()
+// Close releases retriever resources.
+func (r *Retriever) Close() error {
+	if r.embedder != nil {
+		return r.embedder.Close()
 	}
 	return nil
 }
 
-// EmbeddingDim returns the embedding dimension.
-func (c *EmbeddingClient) EmbeddingDim() int {
-	return c.runtime.EmbeddingDim()
+// CollectionName returns the configured collection name.
+func (r *Retriever) CollectionName() string {
+	return r.collectionName
 }
 
-// VocabSize returns the tokenizer vocabulary size.
-func (c *EmbeddingClient) VocabSize() int {
-	return c.tokenizer.VocabSize()
+// getPayloadString extracts a string value from Qdrant payload.
+func getPayloadString(payload map[string]*qdrant.Value, key string) (string, bool) {
+	if val, ok := payload[key]; ok {
+		if strVal := val.GetStringValue(); strVal != "" {
+			return strVal, true
+		}
+	}
+	return "", false
 }
 
-// CosineSimilarity computes cosine similarity between two vectors.
-func CosineSimilarity(a, b []float32) float32 {
-	if len(a) != len(b) || len(a) == 0 {
-		return 0
+// convertPayload converts Qdrant payload to a generic map.
+func convertPayload(payload map[string]*qdrant.Value) map[string]interface{} {
+	result := make(map[string]interface{})
+	for key, val := range payload {
+		if val == nil {
+			continue
+		}
+		switch v := val.Kind.(type) {
+		case *qdrant.Value_StringValue:
+			result[key] = v.StringValue
+		case *qdrant.Value_IntegerValue:
+			result[key] = v.IntegerValue
+		case *qdrant.Value_DoubleValue:
+			result[key] = v.DoubleValue
+		case *qdrant.Value_BoolValue:
+			result[key] = v.BoolValue
+		case *qdrant.Value_ListValue:
+			if v.ListValue != nil {
+				list := make([]interface{}, 0, len(v.ListValue.Values))
+				for _, item := range v.ListValue.Values {
+					if item.GetStringValue() != "" {
+						list = append(list, item.GetStringValue())
+					}
+				}
+				result[key] = list
+			}
+		}
 	}
-
-	var dotProduct, normA, normB float32
-	for i := range a {
-		dotProduct += a[i] * b[i]
-		normA += a[i] * a[i]
-		normB += b[i] * b[i]
-	}
-
-	if normA == 0 || normB == 0 {
-		return 0
-	}
-
-	return dotProduct / (sqrt32(normA) * sqrt32(normB))
+	return result
 }
 
-// sqrt32 is a fast float32 square root.
-func sqrt32(x float32) float32 {
-	if x <= 0 {
-		return 0
+// truncateString truncates a string to maxLen characters.
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
 	}
-	// Newton-Raphson iteration
-	z := x
-	for i := 0; i < 10; i++ {
-		z = (z + x/z) / 2
-	}
-	return z
+	return s[:maxLen] + "..."
 }

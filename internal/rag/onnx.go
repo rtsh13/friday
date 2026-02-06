@@ -3,205 +3,254 @@ package rag
 import (
 	"fmt"
 	"math"
-	"sync"
 
 	ort "github.com/yalue/onnxruntime_go"
 )
 
-// ONNXRuntime wraps the ONNX runtime for embedding inference.
-type ONNXRuntime struct {
-	modelPath    string
-	embeddingDim int
-	maxSeqLen    int
-	mu           sync.Mutex
-	initialized  bool
+// EmbeddingClient handles ONNX-based text embedding generation.
+type EmbeddingClient struct {
+	session    *ort.AdvancedSession
+	tokenizer  *Tokenizer
+	config     EmbeddingConfig
+	inputNames []string
+	outputName string
 }
 
-// NewONNXRuntime creates a new ONNX runtime instance.
-func NewONNXRuntime(modelPath string, embeddingDim, maxSeqLen int) (*ONNXRuntime, error) {
-	// Initialize ONNX Runtime library (only once globally)
-	ort.SetSharedLibraryPath(getONNXLibPath())
+// EmbeddingConfig holds configuration for the embedding client.
+type EmbeddingConfig struct {
+	ModelPath     string
+	TokenizerPath string
+	MaxLength     int
+	Dimension     int
+}
+
+// NewEmbeddingClient creates a new ONNX embedding client.
+func NewEmbeddingClient(cfg EmbeddingConfig) (*EmbeddingClient, error) {
+	// Initialize ONNX Runtime
 	if err := ort.InitializeEnvironment(); err != nil {
-		return nil, fmt.Errorf("failed to initialize ONNX Runtime: %w", err)
+		return nil, fmt.Errorf("failed to initialize ONNX runtime: %w", err)
 	}
 
-	return &ONNXRuntime{
-		modelPath:    modelPath,
-		embeddingDim: embeddingDim,
-		maxSeqLen:    maxSeqLen,
-		initialized:  true,
-	}, nil
-}
-
-// getONNXLibPath returns the ONNX Runtime library path from environment.
-func getONNXLibPath() string {
-	// This will be set via ONNXRUNTIME_LIB_PATH environment variable
-	// The library handles this automatically
-	return ""
-}
-
-// Embed runs inference on a batch of tokenized inputs and returns embeddings.
-func (o *ONNXRuntime) Embed(inputIDs, attentionMask [][]int64) ([][]float32, error) {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-
-	if !o.initialized {
-		return nil, fmt.Errorf("ONNX runtime not initialized")
+	// Load tokenizer
+	tokenizer, err := NewTokenizer(cfg.TokenizerPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load tokenizer: %w", err)
 	}
 
-	batchSize := len(inputIDs)
-	if batchSize == 0 {
-		return nil, fmt.Errorf("empty input batch")
-	}
+	// Define input/output names for MiniLM model
+	// Must match names used in scripts/01_export_onnx.py
+	inputNames := []string{"input_ids", "attention_mask"}
+	outputName := "output" // Matches Python export: output_names=["output"]
 
-	seqLen := len(inputIDs[0])
+	// Create input tensors (will be replaced during inference)
+	inputShape := ort.NewShape(1, int64(cfg.MaxLength))
 
-	// Flatten input data for tensor creation
-	flatInputIDs := make([]int64, batchSize*seqLen)
-	flatAttentionMask := make([]int64, batchSize*seqLen)
-
-	for i := 0; i < batchSize; i++ {
-		if len(inputIDs[i]) != seqLen || len(attentionMask[i]) != seqLen {
-			return nil, fmt.Errorf("inconsistent sequence length in batch")
-		}
-		copy(flatInputIDs[i*seqLen:(i+1)*seqLen], inputIDs[i])
-		copy(flatAttentionMask[i*seqLen:(i+1)*seqLen], attentionMask[i])
-	}
-
-	// Create input tensors
-	inputIDsShape := ort.NewShape(int64(batchSize), int64(seqLen))
-	inputIDsTensor, err := ort.NewTensor(inputIDsShape, flatInputIDs)
+	inputIdsTensor, err := ort.NewEmptyTensor[int64](inputShape)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create input_ids tensor: %w", err)
 	}
-	defer inputIDsTensor.Destroy()
 
-	attentionMaskShape := ort.NewShape(int64(batchSize), int64(seqLen))
-	attentionMaskTensor, err := ort.NewTensor(attentionMaskShape, flatAttentionMask)
+	attentionMaskTensor, err := ort.NewEmptyTensor[int64](inputShape)
 	if err != nil {
+		inputIdsTensor.Destroy()
 		return nil, fmt.Errorf("failed to create attention_mask tensor: %w", err)
 	}
-	defer attentionMaskTensor.Destroy()
 
 	// Create output tensor
-	// MiniLM output shape: [batch, seq_len, hidden_dim]
-	outputShape := ort.NewShape(int64(batchSize), int64(seqLen), int64(o.embeddingDim))
-	outputData := make([]float32, batchSize*seqLen*o.embeddingDim)
-	outputTensor, err := ort.NewTensor(outputShape, outputData)
+	outputShape := ort.NewShape(1, int64(cfg.MaxLength), int64(cfg.Dimension))
+	outputTensor, err := ort.NewEmptyTensor[float32](outputShape)
 	if err != nil {
+		inputIdsTensor.Destroy()
+		attentionMaskTensor.Destroy()
 		return nil, fmt.Errorf("failed to create output tensor: %w", err)
 	}
-	defer outputTensor.Destroy()
 
-	// Create session with tensors
+	// Create session options
+	options, err := ort.NewSessionOptions()
+	if err != nil {
+		inputIdsTensor.Destroy()
+		attentionMaskTensor.Destroy()
+		outputTensor.Destroy()
+		return nil, fmt.Errorf("failed to create session options: %w", err)
+	}
+	defer options.Destroy()
+
+	// Create advanced session
 	session, err := ort.NewAdvancedSession(
-		o.modelPath,
-		[]string{"input_ids", "attention_mask"},
-		[]string{"last_hidden_state"},
-		[]ort.ArbitraryTensor{inputIDsTensor, attentionMaskTensor},
+		cfg.ModelPath,
+		inputNames,
+		[]string{outputName},
+		[]ort.ArbitraryTensor{inputIdsTensor, attentionMaskTensor},
 		[]ort.ArbitraryTensor{outputTensor},
-		nil,
+		options,
 	)
 	if err != nil {
+		inputIdsTensor.Destroy()
+		attentionMaskTensor.Destroy()
+		outputTensor.Destroy()
 		return nil, fmt.Errorf("failed to create ONNX session: %w", err)
 	}
-	defer session.Destroy()
 
-	// Run inference
-	if err := session.Run(); err != nil {
-		return nil, fmt.Errorf("ONNX inference failed: %w", err)
+	return &EmbeddingClient{
+		session:    session,
+		tokenizer:  tokenizer,
+		config:     cfg,
+		inputNames: inputNames,
+		outputName: outputName,
+	}, nil
+}
+
+// EmbedSingle generates an embedding for a single text.
+func (c *EmbeddingClient) EmbedSingle(text string) ([]float32, error) {
+	embeddings, err := c.EmbedBatch([]string{text})
+	if err != nil {
+		return nil, err
+	}
+	if len(embeddings) == 0 {
+		return nil, fmt.Errorf("no embeddings generated")
+	}
+	return embeddings[0], nil
+}
+
+// EmbedBatch generates embeddings for multiple texts.
+func (c *EmbeddingClient) EmbedBatch(texts []string) ([][]float32, error) {
+	results := make([][]float32, len(texts))
+
+	for i, text := range texts {
+		// Tokenize
+		inputIds, attentionMask, err := c.tokenizer.Encode(text, c.config.MaxLength)
+		if err != nil {
+			return nil, fmt.Errorf("tokenization failed for text %d: %w", i, err)
+		}
+
+		// Create input tensors
+		inputShape := ort.NewShape(1, int64(c.config.MaxLength))
+
+		inputIdsTensor, err := ort.NewTensor(inputShape, inputIds)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create input_ids tensor: %w", err)
+		}
+
+		attentionMaskTensor, err := ort.NewTensor(inputShape, attentionMask)
+		if err != nil {
+			inputIdsTensor.Destroy()
+			return nil, fmt.Errorf("failed to create attention_mask tensor: %w", err)
+		}
+
+		// Create output tensor
+		outputShape := ort.NewShape(1, int64(c.config.MaxLength), int64(c.config.Dimension))
+		outputTensor, err := ort.NewEmptyTensor[float32](outputShape)
+		if err != nil {
+			inputIdsTensor.Destroy()
+			attentionMaskTensor.Destroy()
+			return nil, fmt.Errorf("failed to create output tensor: %w", err)
+		}
+
+		// Create session options for this inference
+		options, err := ort.NewSessionOptions()
+		if err != nil {
+			inputIdsTensor.Destroy()
+			attentionMaskTensor.Destroy()
+			outputTensor.Destroy()
+			return nil, fmt.Errorf("failed to create session options: %w", err)
+		}
+
+		// Create session for this inference
+		session, err := ort.NewAdvancedSession(
+			c.config.ModelPath,
+			c.inputNames,
+			[]string{c.outputName},
+			[]ort.ArbitraryTensor{inputIdsTensor, attentionMaskTensor},
+			[]ort.ArbitraryTensor{outputTensor},
+			options,
+		)
+		if err != nil {
+			options.Destroy()
+			inputIdsTensor.Destroy()
+			attentionMaskTensor.Destroy()
+			outputTensor.Destroy()
+			return nil, fmt.Errorf("failed to create ONNX session: %w", err)
+		}
+
+		// Run inference
+		if err := session.Run(); err != nil {
+			session.Destroy()
+			options.Destroy()
+			inputIdsTensor.Destroy()
+			attentionMaskTensor.Destroy()
+			outputTensor.Destroy()
+			return nil, fmt.Errorf("ONNX inference failed: %w", err)
+		}
+
+		// Extract output and apply mean pooling
+		outputData := outputTensor.GetData()
+		embedding := meanPooling(outputData, attentionMask, c.config.MaxLength, c.config.Dimension)
+
+		// Normalize embedding
+		embedding = normalizeL2(embedding)
+
+		results[i] = embedding
+
+		// Cleanup
+		session.Destroy()
+		options.Destroy()
+		inputIdsTensor.Destroy()
+		attentionMaskTensor.Destroy()
+		outputTensor.Destroy()
 	}
 
-	// Get output data from tensor
-	rawOutput := outputTensor.GetData()
+	return results, nil
+}
 
-	// Apply mean pooling with attention mask
-	embeddings := o.meanPooling(rawOutput, flatAttentionMask, batchSize, seqLen)
-
-	return embeddings, nil
+// Close releases resources held by the embedding client.
+func (c *EmbeddingClient) Close() error {
+	if c.session != nil {
+		c.session.Destroy()
+	}
+	return nil
 }
 
 // meanPooling applies mean pooling over token embeddings using attention mask.
-func (o *ONNXRuntime) meanPooling(
-	tokenEmbeddings []float32,
-	attentionMask []int64,
-	batchSize, seqLen int,
-) [][]float32 {
-	embeddings := make([][]float32, batchSize)
+func meanPooling(output []float32, attentionMask []int64, seqLen, dim int) []float32 {
+	result := make([]float32, dim)
 
-	for b := 0; b < batchSize; b++ {
-		embedding := make([]float32, o.embeddingDim)
-		maskSum := float32(0)
-
-		// Sum embeddings weighted by attention mask
-		for t := 0; t < seqLen; t++ {
-			maskVal := float32(attentionMask[b*seqLen+t])
-			maskSum += maskVal
-
-			if maskVal > 0 {
-				for d := 0; d < o.embeddingDim; d++ {
-					idx := b*seqLen*o.embeddingDim + t*o.embeddingDim + d
-					embedding[d] += tokenEmbeddings[idx] * maskVal
-				}
+	// Sum embeddings weighted by attention mask
+	var totalWeight float32
+	for i := 0; i < seqLen; i++ {
+		if attentionMask[i] == 1 {
+			for j := 0; j < dim; j++ {
+				result[j] += output[i*dim+j]
 			}
+			totalWeight++
 		}
+	}
 
-		// Divide by sum to get mean (avoid division by zero)
-		if maskSum > 0 {
-			for d := 0; d < o.embeddingDim; d++ {
-				embedding[d] /= maskSum
-			}
+	// Average
+	if totalWeight > 0 {
+		for j := 0; j < dim; j++ {
+			result[j] /= totalWeight
 		}
-
-		// L2 normalize the embedding
-		embedding = l2Normalize(embedding)
-
-		embeddings[b] = embedding
-	}
-
-	return embeddings
-}
-
-// l2Normalize normalizes a vector to unit length.
-func l2Normalize(vec []float32) []float32 {
-	var sumSq float64
-	for _, v := range vec {
-		sumSq += float64(v) * float64(v)
-	}
-
-	norm := math.Sqrt(sumSq)
-	if norm < 1e-12 {
-		return vec
-	}
-
-	result := make([]float32, len(vec))
-	for i, v := range vec {
-		result[i] = float32(float64(v) / norm)
 	}
 
 	return result
 }
 
-// Close releases ONNX runtime resources.
-func (o *ONNXRuntime) Close() error {
-	o.mu.Lock()
-	defer o.mu.Unlock()
+// normalizeL2 normalizes a vector to unit length.
+func normalizeL2(v []float32) []float32 {
+	var sum float64
+	for _, val := range v {
+		sum += float64(val) * float64(val)
+	}
 
-	o.initialized = false
+	norm := float32(math.Sqrt(sum))
+	if norm == 0 {
+		return v
+	}
 
-	// Note: DestroyEnvironment is global and should only be called
-	// when the entire application is shutting down
-	return nil
-}
+	result := make([]float32, len(v))
+	for i, val := range v {
+		result[i] = val / norm
+	}
 
-// EmbeddingDim returns the embedding dimension.
-func (o *ONNXRuntime) EmbeddingDim() int {
-	return o.embeddingDim
-}
-
-// IsInitialized returns whether the runtime is ready.
-func (o *ONNXRuntime) IsInitialized() bool {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return o.initialized
+	return result
 }

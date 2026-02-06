@@ -11,7 +11,7 @@ import (
 
 // Retriever handles document retrieval from Qdrant using ONNX embeddings.
 type Retriever struct {
-	client         qdrant.QdrantClient
+	client         *qdrant.Client
 	collectionName string
 	embedder       *EmbeddingClient
 	logger         *zap.Logger
@@ -30,7 +30,7 @@ func NewRetriever(cfg RetrieverConfig, logger *zap.Logger) (*Retriever, error) {
 	// Connect to Qdrant
 	client, err := qdrant.NewClient(&qdrant.Config{
 		Host: cfg.QdrantHost,
-		Port: uint16(cfg.QdrantPort),
+		Port: cfg.QdrantPort,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to Qdrant at %s:%d: %w",
@@ -63,11 +63,14 @@ func (r *Retriever) Search(ctx context.Context, query string, topK int, minScore
 		return nil, fmt.Errorf("failed to embed query: %w", err)
 	}
 
+	// Convert topK to uint64 pointer
+	limit := uint64(topK)
+
 	// Search Qdrant
 	searchResult, err := r.client.Query(ctx, &qdrant.QueryPoints{
 		CollectionName: r.collectionName,
 		Query:          qdrant.NewQuery(queryEmbedding...),
-		Limit:          qdrant.PtrOf(uint64(topK)),
+		Limit:          &limit,
 		WithPayload:    qdrant.NewWithPayload(true),
 		ScoreThreshold: &minScore,
 	})

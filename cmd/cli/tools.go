@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/functions/network"
+	"github.com/ashutoshrp06/telemetry-debugger/internal/functions"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
@@ -25,9 +25,6 @@ Examples:
 }
 
 func runTools() {
-	registry := tools.NewRegistry()
-	tools.RegisterNetworkingTools(registry)
-
 	headerStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#7C3AED")).
 		Bold(true)
@@ -42,27 +39,58 @@ func runTools() {
 	paramStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#06B6D4"))
 
+	categoryStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#10B981")).
+		Bold(true)
+
+	// Load function registry from YAML
+	registry, err := functions.LoadRegistry("functions.yaml")
+	if err != nil {
+		fmt.Println(lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444")).
+			Render(fmt.Sprintf("Failed to load functions: %v", err)))
+		fmt.Println(descStyle.Render("\nMake sure functions.yaml exists in the current directory."))
+		return
+	}
+
 	fmt.Println(headerStyle.Render("Available Tools"))
 	fmt.Println()
 
-	for _, tool := range registry.All() {
-		fmt.Printf("  %s\n", toolStyle.Render("● "+tool.Name()))
-		fmt.Printf("    %s\n", descStyle.Render(tool.Description()))
+	// Group functions by category
+	categories := make(map[string][]string)
+	for name := range registry.Functions {
+		fn := registry.Functions[name]
+		categories[fn.Category] = append(categories[fn.Category], name)
+	}
 
-		params := tool.Parameters()
-		if len(params) > 0 && verbose {
-			fmt.Println("    Parameters:")
-			for _, p := range params {
-				req := ""
-				if p.Required {
-					req = " (required)"
+	// Display by category
+	for category, names := range categories {
+		fmt.Printf("  %s\n", categoryStyle.Render(category))
+
+		for _, name := range names {
+			fn, _ := registry.Get(name)
+
+			fmt.Printf("    %s\n", toolStyle.Render(fn.Name))
+			fmt.Printf("      %s\n", descStyle.Render(fn.Description))
+
+			if verbose && len(fn.Parameters) > 0 {
+				fmt.Println("      Parameters:")
+				for _, p := range fn.Parameters {
+					req := ""
+					if p.Required {
+						req = " (required)"
+					}
+					fmt.Printf("        %s%s\n", paramStyle.Render(p.Name), req)
+					if p.Description != "" {
+						fmt.Printf("          %s\n", descStyle.Render(p.Description))
+					}
 				}
-				fmt.Printf("      %s%s\n", paramStyle.Render(p.Name), req)
-				fmt.Printf("        %s\n", descStyle.Render(p.Description))
 			}
 		}
 		fmt.Println()
 	}
+
+	totalCount := len(registry.Functions)
+	fmt.Println(descStyle.Render(fmt.Sprintf("  Total: %d tools available", totalCount)))
 
 	if !verbose {
 		fmt.Println(descStyle.Render("  Use --verbose for parameter details"))
