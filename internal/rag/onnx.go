@@ -10,7 +10,7 @@ import (
 // EmbeddingClient handles ONNX-based text embedding generation.
 type EmbeddingClient struct {
 	session    *ort.AdvancedSession
-	tokenizer  *Tokenizer
+	tokenizer  *BERTTokenizer
 	config     EmbeddingConfig
 	inputNames []string
 	outputName string
@@ -32,7 +32,7 @@ func NewEmbeddingClient(cfg EmbeddingConfig) (*EmbeddingClient, error) {
 	}
 
 	// Load tokenizer
-	tokenizer, err := NewTokenizer(cfg.TokenizerPath)
+	tokenizer, err := NewBERTTokenizer(cfg.TokenizerPath, cfg.MaxLength)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load tokenizer: %w", err)
 	}
@@ -117,11 +117,10 @@ func (c *EmbeddingClient) EmbedBatch(texts []string) ([][]float32, error) {
 	results := make([][]float32, len(texts))
 
 	for i, text := range texts {
-		// Tokenize
-		inputIds, attentionMask, err := c.tokenizer.Encode(text, c.config.MaxLength)
-		if err != nil {
-			return nil, fmt.Errorf("tokenization failed for text %d: %w", i, err)
-		}
+		// Tokenize - returns TokenizerOutput struct
+		tokenOutput := c.tokenizer.Encode(text)
+		inputIds := tokenOutput.InputIDs
+		attentionMask := tokenOutput.AttentionMask
 
 		// Create input tensors
 		inputShape := ort.NewShape(1, int64(c.config.MaxLength))

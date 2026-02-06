@@ -28,11 +28,10 @@ func NewPipeline(cfg *config.Config, logger *zap.Logger) (*Pipeline, error) {
 		QdrantPort:     cfg.Qdrant.Port,
 		CollectionName: cfg.Qdrant.Collection,
 		EmbeddingConfig: EmbeddingConfig{
-			ModelPath:    cfg.ONNX.ModelPath,
-			VocabPath:    cfg.ONNX.VocabPath,
-			MaxSeqLen:    cfg.ONNX.MaxSequenceLength,
-			EmbeddingDim: cfg.ONNX.EmbeddingDim,
-			BatchSize:    32,
+			ModelPath:     cfg.ONNX.ModelPath,
+			TokenizerPath: cfg.ONNX.VocabPath,
+			MaxLength:     cfg.ONNX.MaxSequenceLength,
+			Dimension:     cfg.ONNX.EmbeddingDim,
 		},
 	}
 

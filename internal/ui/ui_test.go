@@ -20,40 +20,40 @@ func TestBanner(t *testing.T) {
 }
 
 func TestGetStyles(t *testing.T) {
-	styles := GetStyles()
+	styles := DefaultStyles()
 
 	// Verify all style fields are initialized (non-nil check via string method)
-	_ = styles.AppStyle.String()
-	_ = styles.HeaderStyle.String()
-	_ = styles.InputStyle.String()
-	_ = styles.ResponseStyle.String()
-	_ = styles.ErrorStyle.String()
-	_ = styles.HelpStyle.String()
-	_ = styles.SpinnerStyle.String()
+	_ = styles.App.String()
+	_ = styles.Banner.String()
+	_ = styles.Input.String()
+	_ = styles.AssistantMessage.String()
+	_ = styles.ToolError.String()
+	_ = styles.HelpBar.String()
+	_ = styles.Spinner.String()
 
 	// If we got here without panic, styles are properly initialized
 	t.Log("All styles initialized correctly")
 }
 
 func TestStylesNotEmpty(t *testing.T) {
-	styles := GetStyles()
+	styles := DefaultStyles()
 
 	// Test that styles can render content
 	testContent := "test"
 
-	rendered := styles.HeaderStyle.Render(testContent)
+	rendered := styles.Banner.Render(testContent)
 	if len(rendered) == 0 {
-		t.Error("HeaderStyle.Render returned empty string")
+		t.Error("Banner.Render returned empty string")
 	}
 
-	rendered = styles.ErrorStyle.Render(testContent)
+	rendered = styles.ToolError.Render(testContent)
 	if len(rendered) == 0 {
-		t.Error("ErrorStyle.Render returned empty string")
+		t.Error("ToolError.Render returned empty string")
 	}
 
-	rendered = styles.ResponseStyle.Render(testContent)
+	rendered = styles.AssistantMessage.Render(testContent)
 	if len(rendered) == 0 {
-		t.Error("ResponseStyle.Render returned empty string")
+		t.Error("AssistantMessage.Render returned empty string")
 	}
 }
 
@@ -79,15 +79,12 @@ func TestBannerContainsASCIIArt(t *testing.T) {
 }
 
 func TestNewModel(t *testing.T) {
-	model := NewModel()
+	// Provide a nil function - only testing initialization, not execution
+	model := NewModel(nil)
 
 	// Check initial state
 	if model.err != nil {
 		t.Errorf("New model should have no error, got: %v", model.err)
-	}
-
-	if model.loading {
-		t.Error("New model should not be loading initially")
 	}
 
 	if model.quitting {
@@ -95,13 +92,13 @@ func TestNewModel(t *testing.T) {
 	}
 
 	// Verify styles are set
-	if model.styles.HeaderStyle.String() == "" {
+	if model.styles.Banner.String() == "" {
 		t.Error("Model styles not initialized")
 	}
 }
 
 func TestModelViewNotEmpty(t *testing.T) {
-	model := NewModel()
+	model := NewModel(nil)
 
 	view := model.View()
 
