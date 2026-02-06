@@ -1,9 +1,144 @@
 version: "1.0"
 metadata:
-  last_updated: "2024-01-29"
-  total_functions: 15
+  last_updated: "2025-02-06"
+  total_functions: 21
 
 functions:
+  # ==================== BASIC NETWORK TOOLS (from CLIche) ====================
+  
+  - name: ping
+    description: "Send ICMP ping to check if a host is reachable. Returns latency and packet loss info."
+    category: network
+    phase: read
+    reversible: false
+    parameters:
+      - name: host
+        type: string
+        required: true
+        description: "Hostname or IP address to ping"
+      - name: count
+        type: integer
+        required: false
+        default: 3
+        description: "Number of ping packets to send"
+        validation: "1-20"
+    outputs:
+      reachable: boolean
+      packets_sent: integer
+      packets_received: integer
+      packet_loss_percent: float
+      min_latency_ms: float
+      avg_latency_ms: float
+      max_latency_ms: float
+      raw_output: string
+    timeout_seconds: 30
+
+  - name: dns_lookup
+    description: "Query DNS records for a domain. Returns A, AAAA, CNAME, MX, and TXT records."
+    category: network
+    phase: read
+    reversible: false
+    parameters:
+      - name: domain
+        type: string
+        required: true
+        description: "Domain name to look up"
+      - name: record_type
+        type: string
+        required: false
+        default: "all"
+        description: "Record type: all, A, AAAA, MX, TXT, CNAME"
+        validation: "^(all|A|AAAA|MX|TXT|CNAME)$"
+    outputs:
+      records: array
+      record_count: integer
+    timeout_seconds: 10
+
+  - name: port_scan
+    description: "Check if TCP ports are open on a host. Useful for checking service availability."
+    category: network
+    phase: read
+    reversible: false
+    parameters:
+      - name: host
+        type: string
+        required: true
+        description: "Hostname or IP to scan"
+      - name: ports
+        type: string
+        required: false
+        default: "common"
+        description: "Comma-separated ports (e.g., '22,80,443') or 'common' for common ports"
+    outputs:
+      open_ports: array
+      closed_ports: array
+      total_scanned: integer
+      open_count: integer
+    timeout_seconds: 60
+
+  - name: http_request
+    description: "Make an HTTP/HTTPS request and return status code, headers, and response time."
+    category: network
+    phase: read
+    reversible: false
+    parameters:
+      - name: url
+        type: string
+        required: true
+        description: "URL to request (include http:// or https://)"
+      - name: method
+        type: string
+        required: false
+        default: "GET"
+        description: "HTTP method: GET, HEAD, POST"
+        validation: "^(GET|HEAD|POST)$"
+    outputs:
+      status_code: integer
+      status_text: string
+      response_time_ms: integer
+      headers: object
+      protocol: string
+    timeout_seconds: 30
+
+  - name: traceroute
+    description: "Trace the network path to a host. Shows each hop with latency."
+    category: network
+    phase: read
+    reversible: false
+    parameters:
+      - name: host
+        type: string
+        required: true
+        description: "Hostname or IP to trace"
+      - name: max_hops
+        type: integer
+        required: false
+        default: 15
+        description: "Maximum number of hops"
+        validation: "1-64"
+    outputs:
+      hops: array
+      destination_reached: boolean
+      total_hops: integer
+      raw_output: string
+    timeout_seconds: 120
+
+  - name: netinfo
+    description: "Get local network interface information including IP addresses and MAC addresses."
+    category: network
+    phase: read
+    reversible: false
+    parameters:
+      - name: interface
+        type: string
+        required: false
+        default: "all"
+        description: "Specific interface name, or 'all'"
+    outputs:
+      interfaces: array
+      interface_count: integer
+    timeout_seconds: 5
+
   # ==================== DEBUGGING ====================
   
   - name: analyze_core_dump
@@ -425,7 +560,6 @@ functions:
     timeout_seconds: 15
 
 # ==================== ROLLBACK FUNCTIONS (INTERNAL) ====================
-# These are not exposed to LLM but used by transaction engine
 
 rollback_functions:
   - name: restore_sysctl_value

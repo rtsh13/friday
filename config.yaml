@@ -8,15 +8,19 @@ rag:
   min_similarity: 0.7
   max_context_length: 4000
 
-embedding:
-  endpoint: http://localhost:8001
+# ONNX Embedding Configuration
+onnx:
+  model_path: ./models/minilm-l6-v2.onnx
+  vocab_path: ./models/vocab.json
+  max_sequence_length: 128
+  embedding_dim: 384
 
 llm:
   endpoint: http://localhost:8000/v1
   model: Qwen/Qwen2.5-7B-Instruct
   temperature: 0.1
   max_tokens: 2048
-  timeout_seconds: 30
+  timeout_seconds: 60
 
 executor:
   default_strategy: stop_on_error
@@ -26,6 +30,10 @@ executor:
 conversation:
   max_messages: 10
   max_tokens: 4000
+
+ui:
+  show_tool_output: true
+  verbose: false
 
 logging:
   level: info
