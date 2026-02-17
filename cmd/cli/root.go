@@ -7,12 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/agent"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/config"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/ui"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+	"github.com/stratos/cliche/internal/agent"
+	"github.com/stratos/cliche/internal/config"
+	"github.com/stratos/cliche/internal/ui"
 	"go.uber.org/zap"
 )
 
@@ -23,7 +23,7 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "telemetry-debugger [query]",
+	Use:   "doclm [query]",
 	Short: "AI-powered telemetry debugging assistant",
 	Long: `
   ██████╗██╗     ██╗ ██████╗██╗  ██╗███████╗
@@ -37,16 +37,16 @@ var rootCmd = &cobra.Command{
   Supports gRPC, gNMI, YANG models, core dump analysis, and more.
 
 Usage:
-  telemetry-debugger "Check gRPC health on port 50051"   Run a query
-  telemetry-debugger --it                                Interactive mode
-  telemetry-debugger tools                               List available tools
-  telemetry-debugger config                              View/edit configuration
+  doclm "Check gRPC health on port 50051"   Run a query
+  doclm --it                                Interactive mode
+  doclm tools                               List available tools
+  doclm config                              View/edit configuration
 
 Examples:
-  telemetry-debugger "Is the gRPC service on localhost:50051 healthy?"
-  telemetry-debugger "Analyze TCP connections on eth0 port 8080"
-  telemetry-debugger "Inspect network buffer settings"
-  telemetry-debugger --it`,
+  doclm "Is the gRPC service on localhost:50051 healthy?"
+  doclm "Analyze TCP connections on eth0 port 8080"
+  doclm "Inspect network buffer settings"
+  doclm --it`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		if interactive {

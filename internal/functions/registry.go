@@ -3,7 +3,7 @@ package functions
 import (
 	"os"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/types"
+	"github.com/stratos/cliche/internal/types"
 	"gopkg.in/yaml.v3"
 )
 
@@ -16,23 +16,23 @@ func LoadRegistry(path string) (*Registry, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var config struct {
 		Functions []types.FunctionDefinition `yaml:"functions"`
 	}
-	
+
 	if err := yaml.Unmarshal(data, &config); err != nil {
 		return nil, err
 	}
-	
+
 	registry := &Registry{
 		Functions: make(map[string]types.FunctionDefinition),
 	}
-	
+
 	for _, fn := range config.Functions {
 		registry.Functions[fn.Name] = fn
 	}
-	
+
 	return registry, nil
 }
 

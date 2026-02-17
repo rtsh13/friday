@@ -1,4 +1,4 @@
-module github.com/ashutoshrp06/telemetry-debugger
+module github.com/stratos/cliche
 
 go 1.24.2
 

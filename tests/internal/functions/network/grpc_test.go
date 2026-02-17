@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/functions/network"
+	"github.com/stratos/cliche/internal/functions/network"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -231,7 +231,7 @@ func TestCheckGRPCHealth_Timeout(t *testing.T) {
 	// Very short timeout - might timeout or might succeed
 	// This test mainly ensures the timeout parameter is used
 	result, _ := network.CheckGRPCHealth(host, port, 10)
-	
+
 	if result != nil {
 		if status, ok := result["status"].(string); ok {
 			if status != "SERVING" && status != "NOT_SERVING" && status != "UNKNOWN" {

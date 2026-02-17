@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/functions/network"
+	"github.com/stratos/cliche/internal/functions/network"
 )
 
 func TestParseSSOutput_EstablishedConnection(t *testing.T) {
@@ -117,21 +117,21 @@ func TestCalculateRecommendedBuffer(t *testing.T) {
 		{
 			name:        "LowRTT",
 			rttMS:       0.5,
-			minExpected: 625000,   // 0.5ms @ 10Gbps: 0.0005 * 1e10 / 8 = 625000
+			minExpected: 625000, // 0.5ms @ 10Gbps: 0.0005 * 1e10 / 8 = 625000
 			maxExpected: 625000,
 			description: "low RTT should estimate high bandwidth (10Gbps)",
 		},
 		{
 			name:        "MediumRTT",
 			rttMS:       5,
-			minExpected: 625000,   // 5ms @ 1Gbps: 0.005 * 1e9 / 8 = 625000
+			minExpected: 625000, // 5ms @ 1Gbps: 0.005 * 1e9 / 8 = 625000
 			maxExpected: 625000,
 			description: "medium RTT should assume 1Gbps",
 		},
 		{
 			name:        "HighRTT",
 			rttMS:       50,
-			minExpected: 625000,   // 50ms @ 100Mbps: 0.05 * 1e8 / 8 = 625000
+			minExpected: 625000, // 50ms @ 100Mbps: 0.05 * 1e8 / 8 = 625000
 			maxExpected: 625000,
 			description: "high RTT should assume 100Mbps",
 		},
@@ -158,10 +158,10 @@ func TestCalculateRecommendedBuffer_Specific(t *testing.T) {
 		// All these calculate to roughly 625KB because the bandwidth is scaled inversely with RTT
 		// 0.5ms @ 10Gbps: 0.0005 * 1e10 / 8 = 625000 bytes
 		{0.5, 625000},
-		
+
 		// 5ms @ 1Gbps: 0.005 * 1e9 / 8 = 625000 bytes
 		{5, 625000},
-		
+
 		// 50ms @ 100Mbps: 0.05 * 1e8 / 8 = 625000 bytes
 		{50, 625000},
 	}
@@ -202,7 +202,7 @@ func BenchmarkCalculateRecommendedBuffer(b *testing.B) {
 // TestCheckTCPHealth_OutputStructure tests the main function
 func TestCheckTCPHealth_OutputStructure(t *testing.T) {
 	result, err := network.CheckTCPHealth("eth0", 50051)
-	
+
 	// On systems without ss or no active connections, this may fail
 	// That's expected for cross-platform testing
 	if err != nil {

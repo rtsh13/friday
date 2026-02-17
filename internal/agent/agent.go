@@ -7,15 +7,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/config"
-	ctxmgr "github.com/ashutoshrp06/telemetry-debugger/internal/context"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/executor"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/functions"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/llm"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/rag"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/types"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/validator"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/stratos/cliche/internal/config"
+	ctxmgr "github.com/stratos/cliche/internal/context"
+	"github.com/stratos/cliche/internal/executor"
+	"github.com/stratos/cliche/internal/functions"
+	"github.com/stratos/cliche/internal/llm"
+	"github.com/stratos/cliche/internal/rag"
+	"github.com/stratos/cliche/internal/types"
+	"github.com/stratos/cliche/internal/validator"
 	"go.uber.org/zap"
 )
 

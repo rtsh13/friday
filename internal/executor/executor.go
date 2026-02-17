@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/functions/debugging"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/functions/network"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/functions/system"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/types"
+	"github.com/stratos/cliche/internal/functions/debugging"
+	"github.com/stratos/cliche/internal/functions/network"
+	"github.com/stratos/cliche/internal/functions/system"
+	"github.com/stratos/cliche/internal/types"
 	"go.uber.org/zap"
 )
 
