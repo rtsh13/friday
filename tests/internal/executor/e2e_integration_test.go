@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/executor"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/functions"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/types"
+	"github.com/stratos/cliche/internal/executor"
+	"github.com/stratos/cliche/internal/functions"
+	"github.com/stratos/cliche/internal/types"
 	"go.uber.org/zap"
 )
 
@@ -26,21 +26,21 @@ func TestE2E_EndToEnd_FullWorkflow(t *testing.T) {
 	t.Logf("STEP 1: Loading function registry...\n")
 	var functionRegistry *functions.Registry
 	var err error
-	
+
 	// Try multiple paths to find functions.yaml
 	possiblePaths := []string{
-		"../../../functions.yaml",     // from tests/internal/executor
-		"../../functions.yaml",        // fallback
-		"functions.yaml",              // current dir
+		"../../../functions.yaml", // from tests/internal/executor
+		"../../functions.yaml",    // fallback
+		"functions.yaml",          // current dir
 	}
-	
+
 	for _, path := range possiblePaths {
 		functionRegistry, err = functions.LoadRegistry(path)
 		if err == nil {
 			break
 		}
 	}
-	
+
 	if err != nil {
 		t.Logf("  ⚠️  Could not load functions.yaml from any path")
 	}
@@ -273,9 +273,9 @@ func TestE2E_EndToEnd_FullWorkflow(t *testing.T) {
 			if err != nil {
 				// Check if it's an expected environment error
 				errStr := fmt.Sprint(err)
-				if strings.Contains(errStr, "executable file not found") || 
-				   strings.Contains(errStr, "context deadline") ||
-				   strings.Contains(errStr, "connection") {
+				if strings.Contains(errStr, "executable file not found") ||
+					strings.Contains(errStr, "context deadline") ||
+					strings.Contains(errStr, "connection") {
 					t.Logf("      ✓ Type conversion succeeded (got environment error as expected)")
 				} else {
 					t.Logf("      ? Conversion worked but got runtime error: %v", shortenError(errStr))

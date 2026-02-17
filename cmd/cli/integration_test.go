@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/executor"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/functions"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/types"
+	"github.com/stratos/cliche/internal/executor"
+	"github.com/stratos/cliche/internal/functions"
+	"github.com/stratos/cliche/internal/types"
 	"go.uber.org/zap"
 )
 

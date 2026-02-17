@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/functions/system"
+	"github.com/stratos/cliche/internal/functions/system"
 )
 
 // TestInspectNetworkBuffers_SuccessfulRead tests successful reading of buffer values

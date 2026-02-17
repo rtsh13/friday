@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/executor"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/types"
+	"github.com/stratos/cliche/internal/executor"
+	"github.com/stratos/cliche/internal/types"
 	"go.uber.org/zap"
 )
 
@@ -23,13 +23,13 @@ func TestExecute_CheckTCPHealth_Success(t *testing.T) {
 	}
 
 	out, err := ex.Execute(fn)
-	
+
 	// On Windows (no ss command), this will fail. That's expected.
 	// On Linux, this should succeed.
 	if err != nil {
 		// Acceptable for non-Linux systems
-		if strings.Contains(err.Error(), "executable file not found") || 
-		   strings.Contains(err.Error(), "command not found") {
+		if strings.Contains(err.Error(), "executable file not found") ||
+			strings.Contains(err.Error(), "command not found") {
 			t.Logf("CheckTCPHealth failed (expected on non-Linux systems): %v", err)
 			return
 		}
@@ -81,14 +81,14 @@ func TestExecute_CheckGRPCHealth_WithDefaults(t *testing.T) {
 	}
 
 	out, err := ex.Execute(fn)
-	
+
 	// On Windows without a real gRPC server, this will fail with connection refused/timeout
 	// That's expected
 	if err != nil {
 		if strings.Contains(err.Error(), "connection refused") ||
-		   strings.Contains(err.Error(), "connection reset") ||
-		   strings.Contains(err.Error(), "dial") ||
-		   strings.Contains(err.Error(), "deadline") {
+			strings.Contains(err.Error(), "connection reset") ||
+			strings.Contains(err.Error(), "dial") ||
+			strings.Contains(err.Error(), "deadline") {
 			t.Logf("CheckGRPCHealth failed as expected (no server): %v", err)
 			return
 		}

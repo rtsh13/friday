@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/types"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/stratos/cliche/internal/types"
 )
 
 // Model is the Bubble Tea model for the telemetry debugger UI.

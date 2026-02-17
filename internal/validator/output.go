@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/types"
+	"github.com/stratos/cliche/internal/types"
 )
 
 type OutputValidator struct{}
@@ -18,20 +18,20 @@ func (v *OutputValidator) Validate(response string, availableFunctions map[strin
 	if err := json.Unmarshal([]byte(response), &llmResp); err != nil {
 		return nil, fmt.Errorf("invalid JSON: %w", err)
 	}
-	
+
 	if llmResp.Reasoning == "" {
 		return nil, fmt.Errorf("missing reasoning field")
 	}
-	
+
 	if llmResp.Explanation == "" {
 		return nil, fmt.Errorf("missing explanation field")
 	}
-	
+
 	for i, fn := range llmResp.Functions {
 		if _, exists := availableFunctions[fn.Name]; !exists {
 			return nil, fmt.Errorf("unknown function '%s' at index %d", fn.Name, i)
 		}
 	}
-	
+
 	return &llmResp, nil
 }

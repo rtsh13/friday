@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/functions"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+	"github.com/stratos/cliche/internal/functions"
 )
 
 var toolsCmd = &cobra.Command{

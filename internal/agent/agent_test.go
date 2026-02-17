@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/config"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/types"
+	"github.com/stratos/cliche/internal/config"
+	"github.com/stratos/cliche/internal/types"
 )
 
 func TestTruncate(t *testing.T) {

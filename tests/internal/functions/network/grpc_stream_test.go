@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/functions/network"
+	"github.com/stratos/cliche/internal/functions/network"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"
@@ -173,15 +173,15 @@ func TestAnalyzeGRPCStream_LowDropPercentage(t *testing.T) {
 // TestStreamStats_ToMap tests conversion to map
 func TestStreamStats_ToMap(t *testing.T) {
 	stats := &network.StreamStats{
-		StartTime:         time.Now(),
-		EndTime:           time.Now().Add(5 * time.Second),
-		MessagesSent:      100,
-		MessagesReceived:  98,
-		DroppedSequences:  []int64{15, 67, 89},
-		FlowControlEvents: 2,
-		LastStatus:        "SERVING",
+		StartTime:          time.Now(),
+		EndTime:            time.Now().Add(5 * time.Second),
+		MessagesSent:       100,
+		MessagesReceived:   98,
+		DroppedSequences:   []int64{15, 67, 89},
+		FlowControlEvents:  2,
+		LastStatus:         "SERVING",
 		MonitoringDuration: 5.0,
-		Errors:            []string{},
+		Errors:             []string{},
 	}
 
 	result := stats.ToMap()
@@ -296,13 +296,13 @@ func BenchmarkAnalyzeGRPCStream(b *testing.B) {
 // BenchmarkStreamStats_ToMap benchmarks map conversion
 func BenchmarkStreamStats_ToMap(b *testing.B) {
 	stats := &network.StreamStats{
-		StartTime:         time.Now(),
-		EndTime:           time.Now().Add(5 * time.Second),
-		MessagesSent:      1000,
-		MessagesReceived:  980,
-		DroppedSequences:  []int64{1, 5, 10, 15, 20},
-		FlowControlEvents: 5,
-		LastStatus:        "SERVING",
+		StartTime:          time.Now(),
+		EndTime:            time.Now().Add(5 * time.Second),
+		MessagesSent:       1000,
+		MessagesReceived:   980,
+		DroppedSequences:   []int64{1, 5, 10, 15, 20},
+		FlowControlEvents:  5,
+		LastStatus:         "SERVING",
 		MonitoringDuration: 5.0,
 	}
 

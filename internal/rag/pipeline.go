@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/config"
-	"github.com/ashutoshrp06/telemetry-debugger/internal/types"
+	"github.com/stratos/cliche/internal/config"
+	"github.com/stratos/cliche/internal/types"
 	"go.uber.org/zap"
 )
 

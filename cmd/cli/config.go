@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/config"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
+	"github.com/stratos/cliche/internal/config"
 	"gopkg.in/yaml.v3"
 )
 

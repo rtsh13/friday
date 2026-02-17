@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ashutoshrp06/telemetry-debugger/internal/types"
+	"github.com/stratos/cliche/internal/types"
 )
 
 func BuildPrompt(query string, chunks []types.RetrievedChunk, functionNames []string) string {
 	var sb strings.Builder
-	
+
 	sb.WriteString(`You are an expert telemetry debugging assistant. Respond ONLY in valid JSON.
 
 Required JSON structure:
@@ -24,11 +24,11 @@ Required JSON structure:
 
 Available functions:
 `)
-	
+
 	for _, name := range functionNames {
 		sb.WriteString(fmt.Sprintf("- %s\n", name))
 	}
-	
+
 	sb.WriteString("\nRetrieved context:\n")
 	for i, chunk := range chunks {
 		preview := chunk.Content
@@ -37,8 +37,8 @@ Available functions:
 		}
 		sb.WriteString(fmt.Sprintf("[%d] %s (%.2f)\n%s\n\n", i+1, chunk.Source, chunk.Score, preview))
 	}
-	
+
 	sb.WriteString(fmt.Sprintf("\nUser Query: %s\n\nRespond with valid JSON only.", query))
-	
+
 	return sb.String()
 }
