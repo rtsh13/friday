@@ -2,11 +2,19 @@ package executor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/stratos/cliche/internal/types"
 )
+
+// rollbackEntry holds the information needed to undo a single sysctl change.
+type rollbackEntry struct {
+	parameter string
+	oldValue  string
+}
 
 // TransactionExecutor runs a list of function calls sequentially, resolving
 // ${previous_function.field} variable references between steps.
@@ -25,24 +33,30 @@ func NewTransactionExecutor(executor *Executor) *TransactionExecutor {
 //
 // Variable resolution: any parameter value matching ${func_name.field} is
 // replaced with the corresponding output field of a previously-executed
-// function before that call is dispatched. Nested paths are supported:
-// ${check_tcp_health.recommended_buffer_size}, ${grpc.latency_ms}, etc.
+// function before that call is dispatched.
 //
-// Execution stops on the first error from a function whose Critical flag is
-// true, or when a non-critical function fails and the error cannot be
-// recovered. The partial results collected so far are always returned.
+// Rollback: every successful execute_sysctl_command call pushes its old value
+// onto a LIFO stack. On any failure, all entries are rolled back in reverse
+// order via restore_sysctl_value. All rollback errors are collected and
+// reported alongside the original failure; rollback continues even if
+// individual restore calls fail.
 func (te *TransactionExecutor) ExecuteTransaction(
 	ctx context.Context,
 	functions []types.FunctionCall,
 ) ([]types.ExecutionResult, error) {
 	resolver := NewVariableResolver()
 	results := make([]types.ExecutionResult, 0, len(functions))
+	rollbackStack := make([]rollbackEntry, 0)
 
 	for i, fn := range functions {
 		// Check context before each step.
 		select {
 		case <-ctx.Done():
-			return results, fmt.Errorf("execution cancelled at step %d (%s): %w", i, fn.Name, ctx.Err())
+			rollbackErr := te.rollback(rollbackStack)
+			return results, te.combineErrors(
+				fmt.Errorf("execution cancelled at step %d (%s): %w", i, fn.Name, ctx.Err()),
+				rollbackErr,
+			)
 		default:
 		}
 
@@ -56,7 +70,11 @@ func (te *TransactionExecutor) ExecuteTransaction(
 				Error:    fmt.Sprintf("variable resolution failed: %v", err),
 			}
 			results = append(results, result)
-			return results, fmt.Errorf("step %d (%s): %w", i, fn.Name, err)
+			rollbackErr := te.rollback(rollbackStack)
+			return results, te.combineErrors(
+				fmt.Errorf("step %d (%s): %w", i, fn.Name, err),
+				rollbackErr,
+			)
 		}
 
 		// Execute.
@@ -66,7 +84,7 @@ func (te *TransactionExecutor) ExecuteTransaction(
 
 		result := types.ExecutionResult{
 			Index:    i,
-			Function: resolvedFn, // store with resolved params so callers see actual values used
+			Function: resolvedFn,
 			Success:  execErr == nil,
 			Output:   output,
 			Duration: duration,
@@ -77,18 +95,91 @@ func (te *TransactionExecutor) ExecuteTransaction(
 
 		results = append(results, result)
 
-		// On success, register output so later steps can reference it.
+		// On success, register output so later steps can reference it,
+		// and capture rollback info if this was a sysctl modification.
 		if execErr == nil && output != "" {
 			resolver.AddResult(fn.Name, output)
+
+			if fn.Name == "execute_sysctl_command" {
+				if entry, ok := parseSysctlRollbackEntry(output); ok {
+					rollbackStack = append(rollbackStack, entry)
+				}
+			}
 		}
 
-		// Stop the chain on failure.
+		// Stop the chain on failure and attempt rollback.
 		if execErr != nil {
-			return results, fmt.Errorf("step %d (%s) failed: %w", i, fn.Name, execErr)
+			rollbackErr := te.rollback(rollbackStack)
+			return results, te.combineErrors(
+				fmt.Errorf("step %d (%s) failed: %w", i, fn.Name, execErr),
+				rollbackErr,
+			)
 		}
 	}
 
 	return results, nil
+}
+
+// rollback executes all entries in the stack in LIFO order.
+// It always attempts every entry regardless of individual failures, collecting
+// all errors. Returns nil if every restore succeeded or the stack is empty.
+func (te *TransactionExecutor) rollback(stack []rollbackEntry) error {
+	if len(stack) == 0 {
+		return nil
+	}
+
+	var errs []string
+	for i := len(stack) - 1; i >= 0; i-- {
+		entry := stack[i]
+		restoreFn := types.FunctionCall{
+			Name: "restore_sysctl_value",
+			Params: map[string]interface{}{
+				"parameter": entry.parameter,
+				"value":     entry.oldValue,
+			},
+		}
+		if _, err := te.executor.Execute(restoreFn); err != nil {
+			errs = append(errs, fmt.Sprintf("restore %s=%s: %v", entry.parameter, entry.oldValue, err))
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("rollback errors (manual intervention may be required): %s",
+			strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+// combineErrors merges a primary error with an optional rollback error into a
+// single descriptive error. If rollbackErr is nil, the primary error is
+// returned unchanged.
+func (te *TransactionExecutor) combineErrors(primary, rollbackErr error) error {
+	if rollbackErr == nil {
+		return primary
+	}
+	return fmt.Errorf("%w; %s", primary, rollbackErr.Error())
+}
+
+// parseSysctlRollbackEntry extracts parameter and old_value from the JSON
+// output of a successful execute_sysctl_command call.
+// Returns the entry and true on success, zero value and false otherwise.
+func parseSysctlRollbackEntry(output string) (rollbackEntry, bool) {
+	var result map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &result); err != nil {
+		return rollbackEntry{}, false
+	}
+
+	param, ok := result["parameter"].(string)
+	if !ok || param == "" {
+		return rollbackEntry{}, false
+	}
+
+	oldVal, ok := result["old_value"].(string)
+	if !ok {
+		return rollbackEntry{}, false
+	}
+
+	return rollbackEntry{parameter: param, oldValue: oldVal}, true
 }
 
 // resolveFunction returns a copy of fn with all parameter variables resolved.

@@ -73,6 +73,9 @@ func (e *Executor) Execute(fn types.FunctionCall) (string, error) {
 	case "execute_sysctl_command":
 		return e.executeExecuteSysctl(fn.Params)
 
+	case "restore_sysctl_value":
+		return e.executeRestoreSysctlValue(fn.Params)
+
 	// ==================== Debugging Tools (Placeholder) ====================
 	case "analyze_core_dump":
 		return e.executeAnalyzeCoreDump(fn.Params)
@@ -355,6 +358,29 @@ func (e *Executor) executeExecuteSysctl(params map[string]interface{}) (string, 
 	}
 
 	return toJSON(result)
+}
+
+// executeRestoreSysctlValue restores a sysctl parameter to a previous value.
+// Used internally by the transaction rollback mechanism.
+func (e *Executor) executeRestoreSysctlValue(params map[string]interface{}) (string, error) {
+	parameter, err := getString(params, "parameter", true, "")
+	if err != nil {
+		return "", err
+	}
+	value, err := getString(params, "value", true, "")
+	if err != nil {
+		return "", err
+	}
+
+	if err := system.RestoreSysctlValue(parameter, value); err != nil {
+		return "", err
+	}
+
+	return toJSON(map[string]interface{}{
+		"parameter":      parameter,
+		"restored_value": value,
+		"success":        true,
+	})
 }
 
 // ============================================================================
