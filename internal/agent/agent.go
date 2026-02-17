@@ -3,6 +3,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -25,7 +26,7 @@ type Agent struct {
 	ragPipeline      *rag.Pipeline
 	llmClient        *llm.Client
 	executor         *executor.Executor
-	txExecutor       *executor.TransactionExecutor
+	txExecutor       *executor.TransactionEngine
 	functionRegistry *functions.Registry
 	ctxManager       *ctxmgr.Manager
 	inputValidator   *validator.InputValidator
@@ -54,33 +55,38 @@ func New(cfg Config) (*Agent, error) {
 		cfg.FunctionsPath = "functions.yaml"
 	}
 
-	// Load function registry
+	// Load function registry once — reused for both the agent and the transaction engine.
 	funcRegistry, err := functions.LoadRegistry(cfg.FunctionsPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load function registry: %w", err)
 	}
 
-	// Initialize RAG pipeline with ONNX embeddings
+	// Initialize RAG pipeline with ONNX embeddings.
 	ragPipeline, err := rag.NewPipeline(cfg.AppConfig, cfg.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize RAG pipeline: %w", err)
 	}
 
-	// Initialize LLM client (vLLM)
+	// Initialize LLM client (vLLM).
 	llmClient := llm.NewClient(
 		cfg.AppConfig.LLM.Endpoint,
 		cfg.AppConfig.LLM.Model,
 		time.Duration(cfg.AppConfig.LLM.TimeoutSeconds)*time.Second,
 	)
 
-	// Initialize executor
+	// Initialize executor components.
 	exec := executor.NewExecutor(cfg.Logger)
-	txExec := executor.NewTransactionExecutor(exec)
+	vRes := executor.NewVariableResolver()
+	snapM := executor.NewSnapshotManager()
 
-	// Initialize context manager
+	// funcRegistry satisfies executor.PhaseRegistry because functions.Registry
+	// has a Phase(string) string method (add it to internal/functions/registry.go).
+	txExec := executor.NewTransactionEngine(exec, vRes, snapM, funcRegistry)
+
+	// Initialize context manager.
 	ctxManager := ctxmgr.NewManager(cfg.AppConfig.Conversation.MaxMessages)
 
-	// Initialize validators
+	// Initialize validators.
 	inputValidator := validator.NewInputValidator()
 	outputValidator := validator.NewOutputValidator()
 
@@ -126,7 +132,7 @@ func (a *Agent) ProcessQuery(ctx context.Context, query string) (*types.AgentEve
 
 // process handles the actual query processing.
 func (a *Agent) process(ctx context.Context, query string) (types.AgentEvent, error) {
-	// Validate input
+	// Validate input.
 	if err := a.inputValidator.Validate(query); err != nil {
 		return types.AgentEvent{
 			State: types.StateError,
@@ -136,25 +142,23 @@ func (a *Agent) process(ctx context.Context, query string) (types.AgentEvent, er
 
 	sanitizedQuery := a.inputValidator.Sanitize(query)
 
-	// Retrieve context from RAG
+	// Retrieve context from RAG.
 	chunks, err := a.ragPipeline.Retrieve(ctx, sanitizedQuery)
 	if err != nil {
-		a.logger.Warn("RAG retrieval failed, continuing without context",
-			zap.Error(err))
+		a.logger.Warn("RAG retrieval failed, continuing without context", zap.Error(err))
 		chunks = nil
 	}
 
-	a.logger.Info("Retrieved context",
-		zap.Int("chunks_found", len(chunks)))
+	a.logger.Info("Retrieved context", zap.Int("chunks_found", len(chunks)))
 
-	// Build prompt with context and function registry
+	// Build prompt with context and function registry.
 	prompt := llm.BuildPrompt(
 		sanitizedQuery,
 		chunks,
 		a.functionRegistry.List(),
 	)
 
-	// Call LLM
+	// Call LLM.
 	response, err := a.llmClient.Generate(ctx, prompt)
 	if err != nil {
 		return types.AgentEvent{
@@ -163,10 +167,9 @@ func (a *Agent) process(ctx context.Context, query string) (types.AgentEvent, er
 		}, nil
 	}
 
-	// Parse and validate LLM response
+	// Parse and validate LLM response.
 	llmResp, err := a.outputValidator.Validate(response, a.functionRegistry.Functions)
 	if err != nil {
-		// If validation fails, return raw response
 		a.logger.Warn("LLM response validation failed",
 			zap.Error(err),
 			zap.String("raw_response", truncate(response, 200)))
@@ -178,7 +181,7 @@ func (a *Agent) process(ctx context.Context, query string) (types.AgentEvent, er
 		}, nil
 	}
 
-	// If no functions to execute, return explanation
+	// If no functions to execute, return explanation directly.
 	if len(llmResp.Functions) == 0 {
 		return types.AgentEvent{
 			State:       types.StateResponding,
@@ -187,22 +190,42 @@ func (a *Agent) process(ctx context.Context, query string) (types.AgentEvent, er
 		}, nil
 	}
 
-	// Execute functions through transaction executor
-	results, execErr := a.txExecutor.ExecuteTransaction(ctx, llmResp.Functions)
+	// Execute functions through the transaction engine.
+	// llmResp.Functions is already []types.FunctionCall — pass directly.
+	txReq := executor.TransactionRequest{
+		Functions: llmResp.Functions,
+		Strategy:  executor.ExecutionStrategy(llmResp.ExecutionStrategy),
+	}
+	txResults, execErr := a.txExecutor.ExecuteTransaction(ctx, txReq)
 
-	// Add to conversation context
-	msg := types.Message{
+	// Flatten []executor.FunctionResult → []types.ExecutionResult.
+	var results []types.ExecutionResult
+	for _, fr := range txResults {
+		outputStr := ""
+		if fr.Output != nil {
+			if b, jsonErr := json.Marshal(fr.Output); jsonErr == nil {
+				outputStr = string(b)
+			}
+		}
+		results = append(results, types.ExecutionResult{
+			Function: types.FunctionCall{Name: fr.FunctionName},
+			Output:   outputStr,
+			Success:  fr.Success,
+			Error:    errorString(fr.Error),
+			Duration: fr.Duration,
+		})
+	}
+
+	// Add to conversation context.
+	a.ctxManager.AddMessage(types.Message{
 		Role:      "user",
 		Content:   query,
 		Timestamp: time.Now(),
 		Functions: results,
-	}
-	a.ctxManager.AddMessage(msg)
+	})
 
-	// Build final answer with execution results
 	finalAnswer := a.buildFinalAnswer(llmResp, results, execErr)
 
-	// Return event with all results
 	event := types.AgentEvent{
 		State:       types.StateResponding,
 		AllResults:  results,
@@ -210,7 +233,6 @@ func (a *Agent) process(ctx context.Context, query string) (types.AgentEvent, er
 		ChunksFound: len(chunks),
 	}
 
-	// Add first tool call info for UI
 	if len(llmResp.Functions) > 0 {
 		event.ToolCall = &llmResp.Functions[0]
 	}
@@ -221,18 +243,16 @@ func (a *Agent) process(ctx context.Context, query string) (types.AgentEvent, er
 	return event, nil
 }
 
-// buildFinalAnswer constructs a summary of the execution results.
+// buildFinalAnswer constructs a human-readable summary of the execution results.
 func (a *Agent) buildFinalAnswer(llmResp *types.LLMResponse, results []types.ExecutionResult, execErr error) string {
 	var sb strings.Builder
 
-	// Reasoning
 	if llmResp.Reasoning != "" {
 		sb.WriteString("**Reasoning:**\n")
 		sb.WriteString(llmResp.Reasoning)
 		sb.WriteString("\n\n")
 	}
 
-	// Execution results
 	if len(results) > 0 {
 		sb.WriteString("**Execution Results:**\n")
 		for i, result := range results {
@@ -247,7 +267,6 @@ func (a *Agent) buildFinalAnswer(llmResp *types.LLMResponse, results []types.Exe
 			sb.WriteString("\n")
 
 			if result.Success && result.Output != "" {
-				// Truncate long output
 				output := result.Output
 				if len(output) > 500 {
 					output = output[:500] + "..."
@@ -260,12 +279,10 @@ func (a *Agent) buildFinalAnswer(llmResp *types.LLMResponse, results []types.Exe
 		sb.WriteString("\n")
 	}
 
-	// Execution error
 	if execErr != nil {
 		sb.WriteString(fmt.Sprintf("**Execution Warning:** %s\n\n", execErr.Error()))
 	}
 
-	// Explanation
 	if llmResp.Explanation != "" {
 		sb.WriteString("**Explanation:**\n")
 		sb.WriteString(llmResp.Explanation)
@@ -276,7 +293,6 @@ func (a *Agent) buildFinalAnswer(llmResp *types.LLMResponse, results []types.Exe
 
 // Ping checks if the LLM is reachable.
 func (a *Agent) Ping(ctx context.Context) error {
-	// Simple health check - try to generate a minimal response
 	_, err := a.llmClient.Generate(ctx, "Respond with OK")
 	if err != nil {
 		return fmt.Errorf("LLM not reachable: %w", err)
@@ -323,10 +339,18 @@ func (a *Agent) LLMInfo() string {
 	return fmt.Sprintf("%s @ %s", a.cfg.LLM.Model, a.cfg.LLM.Endpoint)
 }
 
-// truncate truncates a string to maxLen characters.
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
 func truncate(s string, maxLen int) string {
 	if len(s) <= maxLen {
 		return s
 	}
 	return s[:maxLen] + "..."
+}
+
+func errorString(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
