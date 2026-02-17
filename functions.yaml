@@ -142,7 +142,7 @@ functions:
   # ==================== DEBUGGING ====================
   
   - name: analyze_core_dump
-    description: "Analyze a core dump file using GDB to identify crash cause"
+    description: "Analyze a core dump file using GDB (Linux) or LLDB (macOS) to identify crash cause"
     category: debugging
     phase: analyze
     reversible: false
@@ -151,16 +151,21 @@ functions:
         type: string
         required: true
         description: "Absolute path to the core dump file"
-        validation: "^/.+\\.core$"
+        validation: "^/.+"
       - name: binary_path
         type: string
         required: false
-        description: "Path to the binary executable"
+        description: "Path to the binary executable (recommended for better symbol resolution)"
     outputs:
-      crash_reason: string
       signal: string
+      signal_description: string
+      crash_reason: string
       backtrace: array
-      thread_count: integer
+      threads: array
+      crash_patterns: array
+      debugger: string
+      core_path: string
+      binary_path: string
     timeout_seconds: 60
     
   - name: analyze_memory_leak
