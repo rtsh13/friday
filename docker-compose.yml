@@ -7,15 +7,8 @@ services:
       - ./data/vector_db:/qdrant/storage
     restart: unless-stopped
 
-  embedding:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.2
-    ports:
-      - "8001:80"
-    command: --model-id sentence-transformers/all-MiniLM-L6-v2
-    restart: unless-stopped
-
   vllm:
-    image: vllm/vllm-openai:v0.4.2  # ← CHANGED: Use older version
+    image: vllm/vllm-openai:v0.8.5
     deploy:
       resources:
         reservations:
@@ -24,17 +17,18 @@ services:
               count: 1
               capabilities: [gpu]
     volumes:
-      - /workspace/outputs:/models
+      - D:/CLIche/FineTuning/merged_3b_fp16:/models/cliche
     ports:
       - "8000:8000"
     environment:
       - NVIDIA_VISIBLE_DEVICES=0
+      - VLLM_USE_V1=0
     command: >
-      --model Qwen/Qwen2.5-7B-Instruct
-      --enable-lora
-      --lora-modules telemetry=/models/lora_adapter
-      --dtype auto
-      --max-model-len 8192
-      --gpu-memory-utilization 0.9
-    shm_size: '8gb'
+      --model /models/cliche
+      --dtype half
+      --max-model-len 1024
+      --gpu-memory-utilization 0.95
+      --enforce-eager
+      --swap-space 2
+    shm_size: '4gb'
     restart: unless-stopped

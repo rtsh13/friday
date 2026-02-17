@@ -43,3 +43,20 @@ docker-volumes/
 
 # Environment files
 .env
+
+# Temp files
+body.json
+
+# Large binaries / downloaded dependencies
+onnxruntime.zip
+onnxruntime/
+models/*.onnx
+models/*.onnx.data
+scripts/*.onnx.data
+
+# Python scripts (fine-tuning related, not part of Go project)
+merge_and_quantize.py
+
+# Build artifacts
+*.pdb
+*.lib
