@@ -50,7 +50,7 @@ func (c *Client) Generate(ctx context.Context, prompt string) (string, error) {
 			{Role: "user", Content: prompt},
 		},
 		Temperature: 0.1,
-		MaxTokens:   2048,
+		MaxTokens:   512,
 	}
 	
 	jsonData, err := json.Marshal(req)
