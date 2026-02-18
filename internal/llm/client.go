@@ -53,13 +53,8 @@ func (c *Client) Generate(ctx context.Context, prompt string) (string, error) {
 		Messages: []ChatMessage{
 			{Role: "user", Content: prompt},
 		},
-<<<<<<< HEAD
-		Temperature: 0.1,
-		MaxTokens:   512,
-=======
 		Temperature: c.temperature,
 		MaxTokens:   c.maxTokens,
->>>>>>> 6de98cc314bf00a62b90597a7d943da55ad30a1f
 	}
 
 	jsonData, err := json.Marshal(req)
