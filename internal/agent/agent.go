@@ -31,14 +31,16 @@ type Agent struct {
 	ctxManager       *ctxmgr.Manager
 	inputValidator   *validator.InputValidator
 	outputValidator  *validator.OutputValidator
+	masterPromptPath string
 	logger           *zap.Logger
 }
 
 // Config holds agent configuration.
 type Config struct {
-	AppConfig     *config.Config
-	FunctionsPath string
-	Logger        *zap.Logger
+	AppConfig        *config.Config
+	FunctionsPath    string
+	MasterPromptPath string
+	Logger           *zap.Logger
 }
 
 // New creates a new agent with all components initialized.
@@ -53,6 +55,10 @@ func New(cfg Config) (*Agent, error) {
 
 	if cfg.FunctionsPath == "" {
 		cfg.FunctionsPath = "functions.yaml"
+	}
+
+	if cfg.MasterPromptPath == "" {
+		cfg.MasterPromptPath = "master_prompt.txt"
 	}
 
 	// Load function registry once — reused for both the agent and the transaction engine.
@@ -81,8 +87,6 @@ func New(cfg Config) (*Agent, error) {
 	vRes := executor.NewVariableResolver()
 	snapM := executor.NewSnapshotManager()
 
-	// funcRegistry satisfies executor.PhaseRegistry because functions.Registry
-	// has a Phase(string) string method (add it to internal/functions/registry.go).
 	txExec := executor.NewTransactionEngine(exec, vRes, snapM, funcRegistry)
 
 	// Initialize context manager.
@@ -102,6 +106,7 @@ func New(cfg Config) (*Agent, error) {
 		ctxManager:       ctxManager,
 		inputValidator:   inputValidator,
 		outputValidator:  outputValidator,
+		masterPromptPath: cfg.MasterPromptPath,
 		logger:           cfg.Logger,
 	}, nil
 }
@@ -153,11 +158,19 @@ func (a *Agent) process(ctx context.Context, query string) (types.AgentEvent, er
 
 	a.logger.Info("Retrieved context", zap.Int("chunks_found", len(chunks)))
 
-	// Build prompt with context and function registry.
+	// Build full function definition slice from registry.
+	funcDefs := make([]types.FunctionDefinition, 0, len(a.functionRegistry.Functions))
+	for _, fn := range a.functionRegistry.Functions {
+		funcDefs = append(funcDefs, fn)
+	}
+
+	// Build prompt using master_prompt.txt with all template variables substituted.
 	prompt := llm.BuildPrompt(
 		sanitizedQuery,
 		chunks,
-		a.functionRegistry.List(),
+		funcDefs,
+		a.ctxManager.GetMessages(),
+		a.masterPromptPath,
 	)
 
 	// Call LLM.
@@ -193,7 +206,6 @@ func (a *Agent) process(ctx context.Context, query string) (types.AgentEvent, er
 	}
 
 	// Execute functions through the transaction engine.
-	// llmResp.Functions is already []types.FunctionCall — pass directly.
 	txReq := executor.TransactionRequest{
 		Functions: llmResp.Functions,
 		Strategy:  executor.ExecutionStrategy(llmResp.ExecutionStrategy),
