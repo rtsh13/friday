@@ -53,6 +53,13 @@ type toolExecution struct {
 	done     bool
 }
 
+// fixed UI line counts used to compute viewport height
+const (
+	bannerLines = 13 // banner height including padding
+	inputLines  = 2  // prompt line + blank line above it
+	helpLines   = 1  // help bar
+)
+
 // NewModel creates a new UI model.
 func NewModel(processQuery func(query string) tea.Cmd) Model {
 	ti := textinput.New()
@@ -65,13 +72,9 @@ func NewModel(processQuery func(query string) tea.Cmd) Model {
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7C3AED"))
 
-	vp := viewport.New(0, 0)
-	vp.KeyMap = viewport.DefaultKeyMap()
-
 	return Model{
 		textInput:    ti,
 		spinner:      s,
-		viewport:     vp,
 		styles:       DefaultStyles(),
 		state:        types.StateIdle,
 		messages:     make([]chatMessage, 0),
@@ -87,41 +90,6 @@ func (m Model) Init() tea.Cmd {
 	)
 }
 
-// headerHeight returns the number of terminal lines occupied by the banner.
-func (m Model) headerHeight() int {
-	banner := m.styles.BannerTitle.Render(Banner())
-	return lipgloss.Height(banner) + 2 // +2 for the two "\n" after the banner
-}
-
-// footerHeight returns the number of terminal lines occupied by the input + help bar.
-func (m Model) footerHeight() int {
-	// 1 blank line + 1 prompt/input line + 1 newline + 1 help bar = 4
-	return 4
-}
-
-// updateViewport rebuilds the viewport content and scrolls to the bottom.
-func (m *Model) updateViewport() {
-	var b strings.Builder
-
-	for _, msg := range m.messages {
-		b.WriteString(m.renderMessage(msg))
-		b.WriteString("\n")
-	}
-
-	if m.currentTool != nil && !m.currentTool.done {
-		b.WriteString(m.renderToolInProgress())
-		b.WriteString("\n")
-	}
-
-	if m.state != types.StateIdle {
-		b.WriteString(m.renderStatus())
-		b.WriteString("\n")
-	}
-
-	m.viewport.SetContent(b.String())
-	m.viewport.GotoBottom()
-}
-
 // Update handles messages and updates the model.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
@@ -134,6 +102,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.quitting = true
 				return m, tea.Quit
 			}
+			// Cancel current operation
 			m.state = types.StateIdle
 			return m, nil
 
@@ -147,20 +116,24 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 
+			// Handle special commands
 			if cmd := m.handleCommand(query); cmd != nil {
-				m.updateViewport()
+				m.updateViewportContent()
 				return m, cmd
 			}
 
+			// Add user message to chat
 			m.messages = append(m.messages, chatMessage{
 				role:    "user",
 				content: query,
 			})
 
+			// Clear input and start processing
 			m.textInput.SetValue("")
 			m.state = types.StateThinking
-			m.updateViewport()
+			m.updateViewportContent()
 
+			// Trigger agent processing
 			if m.processQuery != nil {
 				cmds = append(cmds, m.processQuery(query))
 			}
@@ -173,54 +146,77 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 		m.textInput.Width = msg.Width - 10
 
-		vpWidth := msg.Width
-		vpHeight := msg.Height - m.headerHeight() - m.footerHeight()
+		vpHeight := m.height - bannerLines - inputLines - helpLines
 		if vpHeight < 1 {
 			vpHeight = 1
 		}
 
 		if !m.ready {
-			m.viewport = viewport.New(vpWidth, vpHeight)
-			m.viewport.KeyMap = viewport.DefaultKeyMap()
+			m.viewport = viewport.New(msg.Width, vpHeight)
+			m.viewport.SetContent("")
+			m.ready = true
 		} else {
-			m.viewport.Width = vpWidth
+			m.viewport.Width = msg.Width
 			m.viewport.Height = vpHeight
 		}
-
-		m.ready = true
-		m.updateViewport()
+		m.updateViewportContent()
 
 	case types.AgentEvent:
 		newModel, cmd := m.handleAgentEvent(msg)
-		nm := newModel.(Model)
-		nm.updateViewport()
-		return nm, cmd
+		m2 := newModel.(Model)
+		m2.updateViewportContent()
+		// Auto-scroll to bottom on new content
+		m2.viewport.GotoBottom()
+		return m2, cmd
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
 		m.spinner, cmd = m.spinner.Update(msg)
 		cmds = append(cmds, cmd)
-		// Refresh viewport to update spinner frame
-		m.updateViewport()
 
 	case errMsg:
 		m.err = msg.err
 		m.state = types.StateError
-		m.updateViewport()
 	}
 
-	// Forward key events to viewport when not typing (idle and no text in input)
+	// Always forward key events to viewport (handles PgUp/PgDn/Up/Down for scrolling)
+	if m.ready {
+		var cmd tea.Cmd
+		m.viewport, cmd = m.viewport.Update(msg)
+		cmds = append(cmds, cmd)
+	}
+
+	// Update text input only when idle
 	if m.state == types.StateIdle {
-		var tiCmd tea.Cmd
-		m.textInput, tiCmd = m.textInput.Update(msg)
-		cmds = append(cmds, tiCmd)
+		var cmd tea.Cmd
+		m.textInput, cmd = m.textInput.Update(msg)
+		cmds = append(cmds, cmd)
 	}
-
-	var vpCmd tea.Cmd
-	m.viewport, vpCmd = m.viewport.Update(msg)
-	cmds = append(cmds, vpCmd)
 
 	return m, tea.Batch(cmds...)
+}
+
+// updateViewportContent re-renders all chat messages into the viewport.
+func (m *Model) updateViewportContent() {
+	if !m.ready {
+		return
+	}
+	var b strings.Builder
+	for _, msg := range m.messages {
+		b.WriteString(m.renderMessage(msg))
+		b.WriteString("\n")
+	}
+	// Show in-progress tool if any
+	if m.currentTool != nil && !m.currentTool.done {
+		b.WriteString(m.renderToolInProgress())
+		b.WriteString("\n")
+	}
+	// Show status line inside viewport when processing
+	if m.state != types.StateIdle {
+		b.WriteString(m.renderStatus())
+		b.WriteString("\n")
+	}
+	m.viewport.SetContent(b.String())
 }
 
 // errMsg wraps errors.
@@ -296,6 +292,7 @@ func (m Model) handleAgentEvent(event types.AgentEvent) (tea.Model, tea.Cmd) {
 		// Tool is running, spinner shows progress
 
 	case types.StateResponding:
+		// Handle tool results
 		if event.ToolResult != nil && m.currentTool != nil {
 			m.currentTool.success = event.ToolResult.Success
 			m.currentTool.output = event.ToolResult.Output
@@ -303,6 +300,7 @@ func (m Model) handleAgentEvent(event types.AgentEvent) (tea.Model, tea.Cmd) {
 			m.currentTool.duration = event.ToolResult.Duration.String()
 			m.currentTool.done = true
 
+			// Add tool execution to messages
 			m.messages = append(m.messages, chatMessage{
 				role: "tool",
 				tool: m.currentTool,
@@ -310,7 +308,9 @@ func (m Model) handleAgentEvent(event types.AgentEvent) (tea.Model, tea.Cmd) {
 			m.currentTool = nil
 		}
 
+		// Handle multiple results
 		for _, result := range event.AllResults {
+			// Skip if already added
 			if event.ToolResult != nil && result.Index == event.ToolResult.Index {
 				continue
 			}
@@ -329,6 +329,7 @@ func (m Model) handleAgentEvent(event types.AgentEvent) (tea.Model, tea.Cmd) {
 			})
 		}
 
+		// Add final answer
 		if event.FinalAnswer != "" {
 			m.messages = append(m.messages, chatMessage{
 				role:    "assistant",
@@ -365,15 +366,15 @@ func (m Model) View() string {
 
 	var b strings.Builder
 
-	// Fixed header: banner
+	// Banner
 	b.WriteString(m.styles.BannerTitle.Render(Banner()))
 	b.WriteString("\n\n")
 
-	// Scrollable middle: viewport
+	// Scrollable chat history via viewport
 	b.WriteString(m.viewport.View())
 	b.WriteString("\n")
 
-	// Fixed footer: input + help bar
+	// Input
 	b.WriteString(m.styles.Prompt.Render("> "))
 	if m.state == types.StateIdle {
 		b.WriteString(m.textInput.View())
@@ -381,6 +382,8 @@ func (m Model) View() string {
 		b.WriteString(m.styles.StatusText.Render("(processing...)"))
 	}
 	b.WriteString("\n")
+
+	// Help bar
 	b.WriteString(m.renderHelpBar())
 
 	return m.styles.App.Render(b.String())
@@ -410,9 +413,11 @@ func (m Model) renderMessage(msg chatMessage) string {
 func (m Model) renderToolResult(t *toolExecution) string {
 	var b strings.Builder
 
+	// Tool header
 	header := fmt.Sprintf("Tool: %s", t.name)
 	b.WriteString(m.styles.ToolName.Render(header))
 
+	// Parameters (compact)
 	if len(t.params) > 0 {
 		params := make([]string, 0, len(t.params))
 		for k, v := range t.params {
@@ -423,6 +428,7 @@ func (m Model) renderToolResult(t *toolExecution) string {
 	}
 	b.WriteString("\n")
 
+	// Result
 	if t.success {
 		b.WriteString(m.styles.ToolSuccess.Render("  Success"))
 		if t.duration != "" && t.duration != "0s" {
@@ -430,6 +436,7 @@ func (m Model) renderToolResult(t *toolExecution) string {
 		}
 		b.WriteString("\n")
 		if t.output != "" {
+			// Indent and truncate output
 			output := t.output
 			if len(output) > 300 {
 				output = output[:300] + "..."
@@ -486,8 +493,8 @@ func (m Model) renderHelpBar() string {
 	help := []string{
 		m.styles.HelpKey.Render("enter") + m.styles.HelpValue.Render(" send"),
 		m.styles.HelpKey.Render("ctrl+c") + m.styles.HelpValue.Render(" quit"),
+		m.styles.HelpKey.Render("↑/↓ pgup/pgdn") + m.styles.HelpValue.Render(" scroll"),
 		m.styles.HelpKey.Render("help") + m.styles.HelpValue.Render(" commands"),
-		m.styles.HelpKey.Render("tools") + m.styles.HelpValue.Render(" list tools"),
 	}
 	return m.styles.HelpBar.Render(strings.Join(help, "  |  "))
 }
