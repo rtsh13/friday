@@ -19,7 +19,7 @@ llm:
   endpoint: http://localhost:8000/v1
   model: /models/cliche
   temperature: 0.1
-  max_tokens: 2048
+  max_tokens: 512
   timeout_seconds: 60
 
 executor:
