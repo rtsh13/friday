@@ -33,7 +33,10 @@ func runConfig(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	showConfig()
+	// Only show config when --show is true (default) or explicitly set
+	if configShow {
+		showConfig()
+	}
 }
 
 func initConfig() {

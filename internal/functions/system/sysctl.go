@@ -19,6 +19,44 @@ var paramValidationRegex = regexp.MustCompile(`^net\.[a-z0-9_.]+$`)
 // and basic separators. Prevents shell injection.
 var valueValidationRegex = regexp.MustCompile(`^[0-9 \t]+$`)
 
+// ValidateSysctl performs all parameter and value validation without applying
+// any change. Used by the dry-run gate in the transaction executor to verify
+// that an execute_sysctl_command call is safe before prompting the user.
+func ValidateSysctl(parameter string, value string) error {
+	if !paramValidationRegex.MatchString(parameter) {
+		return fmt.Errorf(
+			"invalid parameter %q: must match pattern net.<path> (e.g. net.core.rmem_max)",
+			parameter,
+		)
+	}
+	trimmedValue := strings.TrimSpace(value)
+	if trimmedValue == "" {
+		return fmt.Errorf("value cannot be empty")
+	}
+	if !valueValidationRegex.MatchString(trimmedValue) {
+		return fmt.Errorf(
+			"invalid value %q: only numeric values and spaces are allowed",
+			value,
+		)
+	}
+	isZero := true
+	for _, part := range strings.Fields(trimmedValue) {
+		if part != "0" {
+			isZero = false
+			break
+		}
+	}
+	if isZero {
+		return fmt.Errorf("refusing to set %s to zero: this would break networking", parameter)
+	}
+	// Verify the kernel parameter path is accessible on this system.
+	procPath := ParamToProcPath(parameter)
+	if _, err := os.Stat(procPath); err != nil {
+		return fmt.Errorf("kernel parameter %s is not accessible: %w", parameter, err)
+	}
+	return nil
+}
+
 // ExecuteSysctl modifies a Linux kernel parameter using sysctl.
 // It reads the current value before modifying, applies the change, verifies it,
 // and optionally persists it to /etc/sysctl.conf.

@@ -55,20 +55,19 @@ type Message struct {
 	Metadata  map[string]any    `json:"metadata,omitempty"`
 }
 
-// FunctionDefinition describes a function from the YAML registry.
 type FunctionDefinition struct {
 	Name             string                 `yaml:"name"`
 	Description      string                 `yaml:"description"`
 	Category         string                 `yaml:"category"`
-	Phase            string                 `yaml:"phase"`
+	Phase            string                 `yaml:"phase"` // "read", "analyze", "modify"
+	Reversible       bool                   `yaml:"reversible"`
+	Destructive      bool                   `yaml:"destructive"`
+	RollbackFunction string                 `yaml:"rollback_function,omitempty"`
+	SnapshotRequired bool                   `yaml:"snapshot_required,omitempty"`
+	RequiresConfirm  bool                   `yaml:"requires_confirmation"`
 	Parameters       []ParameterDefinition  `yaml:"parameters"`
 	Outputs          map[string]interface{} `yaml:"outputs"`
 	TimeoutSeconds   int                    `yaml:"timeout_seconds"`
-	Reversible       bool                   `yaml:"reversible"`
-	Destructive      bool                   `yaml:"destructive"`
-	RequiresConfirm  bool                   `yaml:"requires_confirmation"`
-	RollbackFunction string                 `yaml:"rollback_function,omitempty"`
-	SnapshotRequired bool                   `yaml:"snapshot_required,omitempty"`
 }
 
 // ParameterDefinition describes a function parameter.

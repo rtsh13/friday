@@ -21,6 +21,23 @@ type TCPStats struct {
 	Latency               float64 // RTT in milliseconds
 }
 
+// validTCPStates is the set of connection state tokens that ss can emit.
+// Used by the parser to locate the state field regardless of whether the
+// Netid column ("tcp", "udp", etc.) is present — which varies by iproute2 version.
+var validTCPStates = map[string]bool{
+	"ESTAB":      true,
+	"LISTEN":     true,
+	"TIME-WAIT":  true,
+	"CLOSE-WAIT": true,
+	"SYN-SENT":   true,
+	"SYN-RECV":   true,
+	"FIN-WAIT-1": true,
+	"FIN-WAIT-2": true,
+	"CLOSING":    true,
+	"LAST-ACK":   true,
+	"CLOSED":     true,
+}
+
 // CheckTCPHealth analyzes TCP connection health using ss command
 func CheckTCPHealth(iface string, port int) (map[string]interface{}, error) {
 	// Execute ss command to get TCP stats for specific port
@@ -53,10 +70,10 @@ func ParseTCPStats(port int) (*TCPStats, error) {
 
 // parseTCPStats executes ss command and parses the output
 func parseTCPStats(port int) (*TCPStats, error) {
-	// Build ss command: ss -ti sport = :PORT
-	// -t: TCP sockets
-	// -i: show TCP info
-	cmd := exec.Command("ss", "-ti", fmt.Sprintf("sport = :%d", port))
+	// Bug 3 fix: pass filter as separate tokens so ss parses the expression
+	// correctly. Previously fmt.Sprintf("sport = :%d", port) was passed as a
+	// single argument, which ss treats as an opaque string and ignores.
+	cmd := exec.Command("ss", "-ti", "sport", "=", fmt.Sprintf(":%d", port))
 
 	var out bytes.Buffer
 	var errOut bytes.Buffer
@@ -75,17 +92,26 @@ func parseTCPStats(port int) (*TCPStats, error) {
 	return parseSSOutput(output, port)
 }
 
-// parseSSOutput parses the output from ss command
-// Output format:
-// State    Recv-Q Send-Q Local Address:Port Peer Address:Port
-// ESTAB    0      10     127.0.0.1:50051  127.0.0.1:54321
-//          cubic wscale:7,7 rto:204 rtt:0.5/0.25 send 167.7Mbps rcv_space:29200
-
 // ParseSSOutput parses the ss command output (exported for testing)
 func ParseSSOutput(output string, port int) (*TCPStats, error) {
 	return parseSSOutput(output, port)
 }
 
+// parseSSOutput parses the output from ss -ti.
+//
+// Two output formats exist depending on the iproute2 version installed:
+//
+//	Old (no Netid column):
+//	  State    Recv-Q Send-Q Local Address:Port Peer Address:Port
+//	  ESTAB    0      10     127.0.0.1:50051    127.0.0.1:54321
+//
+//	New (with Netid column, iproute2 >= ~5.x):
+//	  Netid  State  Recv-Q  Send-Q  Local Address:Port  Peer Address:Port
+//	  tcp    ESTAB  0       10      127.0.0.1:50051     127.0.0.1:54321
+//
+// Bug 2 fix: the original code used strings.HasPrefix(line, "ESTAB") which
+// fails on the new format because the line starts with "tcp". The parser now
+// inspects field[0] and field[1] against validTCPStates to handle both formats.
 func parseSSOutput(output string, port int) (*TCPStats, error) {
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 	stats := &TCPStats{
@@ -96,25 +122,33 @@ func parseSSOutput(output string, port int) (*TCPStats, error) {
 
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "State") {
+		if line == "" || strings.HasPrefix(line, "State") || strings.HasPrefix(line, "Netid") {
 			continue
 		}
 
-		// Parse state line (e.g., "ESTAB 0 10 127.0.0.1:50051 127.0.0.1:54321")
-		if strings.HasPrefix(line, "ESTAB") || strings.HasPrefix(line, "LISTEN") ||
-			strings.HasPrefix(line, "TIME-WAIT") || strings.HasPrefix(line, "CLOSE-WAIT") {
-			fields := strings.Fields(line)
-			if len(fields) >= 5 {
-				stats.State = fields[0]
-				// Parse recv queue (Recv-Q)
-				if recvQ, err := strconv.Atoi(fields[1]); err == nil {
-					stats.RecvQueueBytes = recvQ
-				}
-				// Parse send queue (Send-Q)
-				if sendQ, err := strconv.Atoi(fields[2]); err == nil {
-					stats.SendQueueBytes = sendQ
-				}
+		fields := strings.Fields(line)
+
+		// Detect which field index holds the TCP state token.
+		// stateIdx == 0: old format (no Netid column)
+		// stateIdx == 1: new format (Netid column present)
+		stateIdx := -1
+		if len(fields) >= 5 && validTCPStates[fields[0]] {
+			stateIdx = 0
+		} else if len(fields) >= 6 && validTCPStates[fields[1]] {
+			stateIdx = 1
+		}
+
+		if stateIdx >= 0 {
+			stats.State = fields[stateIdx]
+			// Recv-Q is immediately after the state token.
+			if recvQ, err := strconv.Atoi(fields[stateIdx+1]); err == nil {
+				stats.RecvQueueBytes = recvQ
 			}
+			// Send-Q follows Recv-Q.
+			if sendQ, err := strconv.Atoi(fields[stateIdx+2]); err == nil {
+				stats.SendQueueBytes = sendQ
+			}
+			continue
 		}
 
 		// Parse TCP info line (contains rtt, retransmits, etc.)
@@ -135,9 +169,6 @@ func parseSSOutput(output string, port int) (*TCPStats, error) {
 					stats.Retransmits = retrans
 				}
 			}
-
-			// Note: rcv_space is kernel's estimate of recommended receive buffer
-			// but it's not the actual queue size, so we don't override RecvQueueBytes
 		}
 	}
 

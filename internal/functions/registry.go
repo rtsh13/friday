@@ -48,3 +48,10 @@ func (r *Registry) List() []string {
 	}
 	return names
 }
+
+func (r *Registry) Phase(functionName string) string {
+	if fn, exists := r.Functions[functionName]; exists {
+		return fn.Phase
+	}
+	return "read"
+}
