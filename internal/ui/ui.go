@@ -1,500 +1,364 @@
-// Package ui provides the terminal user interface using Bubble Tea.
+// Package ui provides the terminal interface for CLICHE.
 package ui
 
 import (
+	"bufio"
+	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
+	"time"
+	"unicode"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/bubbles/viewport"
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/stratos/cliche/internal/types"
 )
 
-// Model is the Bubble Tea model for the telemetry debugger UI.
-type Model struct {
-	// UI Components
-	textInput textinput.Model
-	spinner   spinner.Model
-	viewport  viewport.Model
-	styles    Styles
-
-	// State
-	state       types.AgentState
-	messages    []chatMessage
-	currentTool *toolExecution
-	width       int
-	height      int
-	ready       bool
-	quitting    bool
-	err         error
-
-	// Agent interface (injected)
-	processQuery func(query string) tea.Cmd
+// Agent is the interface ui needs from the agent package.
+type Agent interface {
+	ProcessQuery(ctx context.Context, query string) (*types.AgentEvent, error)
 }
 
-// chatMessage represents a message in the chat history.
-type chatMessage struct {
-	role    string // "user", "assistant", "system", "tool"
-	content string
-	tool    *toolExecution
-}
+// Run starts the interactive readline loop.
+func Run(agent Agent) {
+	styles := DefaultStyles()
 
-// toolExecution tracks a tool call and its result.
-type toolExecution struct {
-	name     string
-	params   map[string]interface{}
-	output   string
-	success  bool
-	error    string
-	duration string
-	done     bool
-}
+	printBanner(styles)
+	fmt.Println()
+	fmt.Println(styles.SystemMessage.Render("  Type your query or 'help' for commands. Ctrl+C to exit."))
+	fmt.Println()
 
-// fixed UI line counts used to compute viewport height
-const (
-	bannerLines = 13 // banner height including padding
-	inputLines  = 2  // prompt line + blank line above it
-	helpLines   = 1  // help bar
-)
+	reader := bufio.NewReader(os.Stdin)
 
-// NewModel creates a new UI model.
-func NewModel(processQuery func(query string) tea.Cmd) Model {
-	ti := textinput.New()
-	ti.Placeholder = "Describe your issue... (e.g., 'Check if gRPC service on port 50051 is healthy')"
-	ti.Focus()
-	ti.CharLimit = 500
-	ti.Width = 80
+	// Handle Ctrl+C gracefully.
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sig
+		fmt.Println()
+		fmt.Println(styles.SystemMessage.Render("  Goodbye!"))
+		os.Exit(0)
+	}()
 
-	s := spinner.New()
-	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7C3AED"))
+	for {
+		fmt.Print(styles.Prompt.Render("❯ "))
 
-	return Model{
-		textInput:    ti,
-		spinner:      s,
-		styles:       DefaultStyles(),
-		state:        types.StateIdle,
-		messages:     make([]chatMessage, 0),
-		processQuery: processQuery,
-	}
-}
-
-// Init initializes the model.
-func (m Model) Init() tea.Cmd {
-	return tea.Batch(
-		textinput.Blink,
-		m.spinner.Tick,
-	)
-}
-
-// Update handles messages and updates the model.
-func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
-			if m.state == types.StateIdle {
-				m.quitting = true
-				return m, tea.Quit
-			}
-			// Cancel current operation
-			m.state = types.StateIdle
-			return m, nil
-
-		case tea.KeyEnter:
-			if m.state != types.StateIdle {
-				return m, nil
-			}
-
-			query := strings.TrimSpace(m.textInput.Value())
-			if query == "" {
-				return m, nil
-			}
-
-			// Handle special commands
-			if cmd := m.handleCommand(query); cmd != nil {
-				m.updateViewportContent()
-				return m, cmd
-			}
-
-			// Add user message to chat
-			m.messages = append(m.messages, chatMessage{
-				role:    "user",
-				content: query,
-			})
-
-			// Clear input and start processing
-			m.textInput.SetValue("")
-			m.state = types.StateThinking
-			m.updateViewportContent()
-
-			// Trigger agent processing
-			if m.processQuery != nil {
-				cmds = append(cmds, m.processQuery(query))
-			}
-
-			return m, tea.Batch(cmds...)
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			break
 		}
 
-	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		m.textInput.Width = msg.Width - 10
-
-		vpHeight := m.height - bannerLines - inputLines - helpLines
-		if vpHeight < 1 {
-			vpHeight = 1
+		query := strings.TrimSpace(line)
+		if query == "" {
+			continue
 		}
 
-		if !m.ready {
-			m.viewport = viewport.New(msg.Width, vpHeight)
-			m.viewport.SetContent("")
-			m.ready = true
-		} else {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = vpHeight
+		if handled := handleCommand(query, styles); handled {
+			continue
 		}
-		m.updateViewportContent()
 
-	case types.AgentEvent:
-		newModel, cmd := m.handleAgentEvent(msg)
-		m2 := newModel.(Model)
-		m2.updateViewportContent()
-		// Auto-scroll to bottom on new content
-		m2.viewport.GotoBottom()
-		return m2, cmd
-
-	case spinner.TickMsg:
-		var cmd tea.Cmd
-		m.spinner, cmd = m.spinner.Update(msg)
-		cmds = append(cmds, cmd)
-
-	case errMsg:
-		m.err = msg.err
-		m.state = types.StateError
+		fmt.Println()
+		runQuery(agent, query, styles)
+		fmt.Println()
 	}
-
-	// Always forward key events to viewport (handles PgUp/PgDn/Up/Down for scrolling)
-	if m.ready {
-		var cmd tea.Cmd
-		m.viewport, cmd = m.viewport.Update(msg)
-		cmds = append(cmds, cmd)
-	}
-
-	// Update text input only when idle
-	if m.state == types.StateIdle {
-		var cmd tea.Cmd
-		m.textInput, cmd = m.textInput.Update(msg)
-		cmds = append(cmds, cmd)
-	}
-
-	return m, tea.Batch(cmds...)
 }
 
-// updateViewportContent re-renders all chat messages into the viewport.
-func (m *Model) updateViewportContent() {
-	if !m.ready {
+// RunOneShot runs a single query and exits -- used by `projectx "query"`.
+func RunOneShot(agent Agent, query string) {
+	styles := DefaultStyles()
+	fmt.Println()
+	runQuery(agent, query, styles)
+	fmt.Println()
+}
+
+// runQuery executes a query against the agent and prints the result.
+func runQuery(agent Agent, query string, styles Styles) {
+	done := make(chan struct{})
+	go runSpinner(styles, done)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	event, err := agent.ProcessQuery(ctx, query)
+
+	close(done)
+	time.Sleep(15 * time.Millisecond)
+	fmt.Print("\r\033[K")
+
+	if err != nil {
+		fmt.Println(styles.ToolError.Render("  Error: " + err.Error()))
 		return
 	}
-	var b strings.Builder
-	for _, msg := range m.messages {
-		b.WriteString(m.renderMessage(msg))
-		b.WriteString("\n")
-	}
-	// Show in-progress tool if any
-	if m.currentTool != nil && !m.currentTool.done {
-		b.WriteString(m.renderToolInProgress())
-		b.WriteString("\n")
-	}
-	// Show status line inside viewport when processing
-	if m.state != types.StateIdle {
-		b.WriteString(m.renderStatus())
-		b.WriteString("\n")
-	}
-	m.viewport.SetContent(b.String())
+
+	printEvent(event, styles)
 }
 
-// errMsg wraps errors.
-type errMsg struct{ err error }
+// runSpinner prints an animated spinner until done is closed.
+func runSpinner(styles Styles, done chan struct{}) {
+	frames := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
+	spinStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#7C3AED"))
+	i := 0
+	for {
+		select {
+		case <-done:
+			return
+		case <-time.After(80 * time.Millisecond):
+			fmt.Printf("\r  %s  %s",
+				spinStyle.Render(frames[i%len(frames)]),
+				styles.StatusText.Render("Thinking..."),
+			)
+			i++
+		}
+	}
+}
 
-// handleCommand processes special commands.
-func (m *Model) handleCommand(input string) tea.Cmd {
+// printEvent renders an AgentEvent to stdout.
+func printEvent(event *types.AgentEvent, styles Styles) {
+	// Show agent message if present (reasoning/status).
+	if event.Message != "" {
+		printSection("Reasoning", event.Message, styles)
+		fmt.Println()
+	}
+
+	// Tool results.
+	for _, result := range event.AllResults {
+		printToolResult(result, styles)
+	}
+
+	// Single tool result when AllResults is empty.
+	if event.ToolResult != nil && len(event.AllResults) == 0 {
+		printToolResult(*event.ToolResult, styles)
+	}
+
+	// Final answer.
+	if event.FinalAnswer != "" {
+		printSection("Explanation", event.FinalAnswer, styles)
+	}
+}
+
+// printSection prints a labeled section with a divider.
+func printSection(title, body string, styles Styles) {
+	fmt.Println(styles.SectionHeader.Render("  " + title))
+	fmt.Println(styles.Divider.Render("  " + strings.Repeat("─", 44)))
+	for _, line := range strings.Split(strings.TrimSpace(body), "\n") {
+		fmt.Println(styles.AssistantMessage.Render("  " + line))
+	}
+}
+
+// printToolResult renders a single tool execution result.
+func printToolResult(result types.ExecutionResult, styles Styles) {
+	status := styles.ToolSuccess.Render("✓")
+	if !result.Success {
+		status = styles.ToolError.Render("✗")
+	}
+
+	dur := ""
+	if result.Duration > 0 {
+		dur = styles.ToolParams.Render(fmt.Sprintf("  %s", result.Duration.Round(time.Millisecond)))
+	}
+
+	fmt.Printf("  %s  %s%s\n",
+		status,
+		styles.ToolName.Render(result.Function.Name),
+		dur,
+	)
+
+	if !result.Success && result.Error != "" {
+		fmt.Println(styles.ToolError.Render("    " + result.Error))
+		fmt.Println()
+		return
+	}
+
+	if result.Output != "" {
+		renderOutput(result.Output, styles)
+	}
+
+	fmt.Println()
+}
+
+// renderOutput parses tool output and renders it human-readably.
+// JSON objects render as aligned key/value rows.
+// Plain text renders as indented lines.
+func renderOutput(raw string, styles Styles) {
+	raw = strings.TrimSpace(raw)
+
+	var obj map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &obj); err == nil {
+		renderObject(obj, styles, 4)
+		return
+	}
+
+	var arr []map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &arr); err == nil {
+		for i, item := range arr {
+			if i > 0 {
+				fmt.Println()
+			}
+			renderObject(item, styles, 4)
+		}
+		return
+	}
+
+	// Plain text fallback.
+	for _, line := range strings.Split(raw, "\n") {
+		if strings.TrimSpace(line) != "" {
+			fmt.Println(styles.ToolOutput.Render("    " + line))
+		}
+	}
+}
+
+// renderObject renders a map as aligned key: value rows.
+func renderObject(obj map[string]interface{}, styles Styles, indent int) {
+	pad := strings.Repeat(" ", indent)
+
+	maxLen := 0
+	for k := range obj {
+		if l := len(humanKey(k)); l > maxLen {
+			maxLen = l
+		}
+	}
+
+	for k, v := range obj {
+		key := humanKey(k)
+		spacing := strings.Repeat(" ", maxLen-len(key))
+		fmt.Printf("%s%s%s  %s\n",
+			pad,
+			styles.ToolName.Render(key+spacing),
+			styles.ToolParams.Render(":"),
+			styles.ToolOutput.Render(renderValue(v)),
+		)
+	}
+}
+
+// renderValue converts a JSON value to a human-readable string.
+func renderValue(v interface{}) string {
+	switch val := v.(type) {
+	case nil:
+		return "—"
+	case bool:
+		if val {
+			return "yes"
+		}
+		return "no"
+	case float64:
+		if val == float64(int(val)) {
+			return fmt.Sprintf("%d", int(val))
+		}
+		return fmt.Sprintf("%.2f", val)
+	case string:
+		if val == "" {
+			return "—"
+		}
+		return val
+	case []interface{}:
+		if len(val) == 0 {
+			return "none"
+		}
+		parts := make([]string, 0, len(val))
+		for _, item := range val {
+			parts = append(parts, renderValue(item))
+		}
+		if len(parts) <= 5 {
+			return strings.Join(parts, ", ")
+		}
+		return strings.Join(parts[:5], ", ") + fmt.Sprintf("  (+%d more)", len(parts)-5)
+	case map[string]interface{}:
+		parts := make([]string, 0, len(val))
+		for k, item := range val {
+			parts = append(parts, humanKey(k)+": "+renderValue(item))
+		}
+		return strings.Join(parts, "  |  ")
+	default:
+		return fmt.Sprintf("%v", val)
+	}
+}
+
+// humanKey converts snake_case / camelCase keys to Title Case words.
+func humanKey(s string) string {
+	var words []string
+	var cur strings.Builder
+
+	runes := []rune(s)
+	for i, r := range runes {
+		if r == '_' || r == '-' {
+			if cur.Len() > 0 {
+				words = append(words, cur.String())
+				cur.Reset()
+			}
+		} else if i > 0 && unicode.IsUpper(r) && unicode.IsLower(runes[i-1]) {
+			words = append(words, cur.String())
+			cur.Reset()
+			cur.WriteRune(r)
+		} else {
+			cur.WriteRune(r)
+		}
+	}
+	if cur.Len() > 0 {
+		words = append(words, cur.String())
+	}
+
+	for i, w := range words {
+		if len(w) > 0 {
+			words[i] = strings.ToUpper(w[:1]) + strings.ToLower(w[1:])
+		}
+	}
+	return strings.Join(words, " ")
+}
+
+// printBanner prints the app banner to stdout.
+func printBanner(styles Styles) {
+	fmt.Println(styles.BannerTitle.Render(Banner()))
+}
+
+// handleCommand handles built-in commands. Returns true if handled.
+func handleCommand(input string, styles Styles) bool {
 	switch strings.ToLower(input) {
 	case "exit", "quit", "q":
-		m.quitting = true
-		return tea.Quit
+		fmt.Println(styles.SystemMessage.Render("  Goodbye!"))
+		os.Exit(0)
 
 	case "clear":
-		m.messages = make([]chatMessage, 0)
-		m.textInput.SetValue("")
-		return nil
+		fmt.Print("\033[H\033[2J")
+		printBanner(styles)
+		fmt.Println()
 
 	case "help", "?":
-		m.messages = append(m.messages, chatMessage{
-			role: "system",
-			content: `Available commands:
-  help, ?     Show this help
-  clear       Clear chat history  
-  exit, quit  Exit the debugger
-
-Example queries:
-  "Check if gRPC service on port 50051 is healthy"
-  "Analyze TCP connection on eth0 port 8080"
-  "Ping google.com"
-  "Inspect network buffer settings"`,
-		})
-		m.textInput.SetValue("")
-		return nil
+		fmt.Println()
+		fmt.Println(styles.SystemMessage.Render(
+			"  Commands\n" +
+				"  " + strings.Repeat("─", 44) + "\n" +
+				"  help, ?       Show this help\n" +
+				"  clear         Clear the screen\n" +
+				"  exit, quit    Exit\n" +
+				"\n" +
+				"  Example queries\n" +
+				"  " + strings.Repeat("─", 44) + "\n" +
+				`  "Check if gRPC service on port 50051 is healthy"` + "\n" +
+				`  "Analyze TCP connections on eth0"` + "\n" +
+				`  "Ping google.com"` + "\n" +
+				`  "Inspect network buffer settings"`,
+		))
+		fmt.Println()
 
 	case "tools":
-		m.messages = append(m.messages, chatMessage{
-			role: "system",
-			content: `Available diagnostic tools:
-  
-  Basic Network:
-    ping, dns_lookup, port_scan, http_request, traceroute, netinfo
-  
-  TCP/gRPC:
-    check_tcp_health, check_grpc_health, analyze_grpc_stream
-  
-  System:
-    inspect_network_buffers, execute_sysctl_command
-  
-  Debugging:
-    analyze_core_dump, analyze_memory_leak`,
-		})
-		m.textInput.SetValue("")
-		return nil
+		fmt.Println()
+		fmt.Println(styles.SystemMessage.Render(
+			"  Available Tools\n" +
+				"  " + strings.Repeat("─", 44) + "\n" +
+				"  Network     ping, dns_lookup, port_scan,\n" +
+				"              http_request, traceroute, netinfo\n" +
+				"  TCP/gRPC    check_tcp_health, check_grpc_health,\n" +
+				"              analyze_grpc_stream\n" +
+				"  System      inspect_network_buffers, execute_sysctl_command\n" +
+				"  Debugging   analyze_core_dump, analyze_memory_leak",
+		))
+		fmt.Println()
+
+	default:
+		return false
 	}
-
-	return nil
-}
-
-// handleAgentEvent processes events from the agent.
-func (m Model) handleAgentEvent(event types.AgentEvent) (tea.Model, tea.Cmd) {
-	m.state = event.State
-
-	switch event.State {
-	case types.StateToolCall:
-		if event.ToolCall != nil {
-			m.currentTool = &toolExecution{
-				name:   event.ToolCall.Name,
-				params: event.ToolCall.Params,
-			}
-		}
-
-	case types.StateToolExecuting:
-		// Tool is running, spinner shows progress
-
-	case types.StateResponding:
-		// Handle tool results
-		if event.ToolResult != nil && m.currentTool != nil {
-			m.currentTool.success = event.ToolResult.Success
-			m.currentTool.output = event.ToolResult.Output
-			m.currentTool.error = event.ToolResult.Error
-			m.currentTool.duration = event.ToolResult.Duration.String()
-			m.currentTool.done = true
-
-			// Add tool execution to messages
-			m.messages = append(m.messages, chatMessage{
-				role: "tool",
-				tool: m.currentTool,
-			})
-			m.currentTool = nil
-		}
-
-		// Handle multiple results
-		for _, result := range event.AllResults {
-			// Skip if already added
-			if event.ToolResult != nil && result.Index == event.ToolResult.Index {
-				continue
-			}
-			tool := &toolExecution{
-				name:     result.Function.Name,
-				params:   result.Function.Params,
-				success:  result.Success,
-				output:   result.Output,
-				error:    result.Error,
-				duration: result.Duration.String(),
-				done:     true,
-			}
-			m.messages = append(m.messages, chatMessage{
-				role: "tool",
-				tool: tool,
-			})
-		}
-
-		// Add final answer
-		if event.FinalAnswer != "" {
-			m.messages = append(m.messages, chatMessage{
-				role:    "assistant",
-				content: event.FinalAnswer,
-			})
-		}
-		m.state = types.StateIdle
-
-	case types.StateError:
-		m.err = event.Error
-		errMsg := "An error occurred"
-		if event.Error != nil {
-			errMsg = event.Error.Error()
-		}
-		m.messages = append(m.messages, chatMessage{
-			role:    "system",
-			content: fmt.Sprintf("Error: %s", errMsg),
-		})
-		m.state = types.StateIdle
-	}
-
-	return m, m.spinner.Tick
-}
-
-// View renders the UI.
-func (m Model) View() string {
-	if m.quitting {
-		return m.styles.SystemMessage.Render("Goodbye!\n")
-	}
-
-	if !m.ready {
-		return "Initializing..."
-	}
-
-	var b strings.Builder
-
-	// Banner
-	b.WriteString(m.styles.BannerTitle.Render(Banner()))
-	b.WriteString("\n\n")
-
-	// Scrollable chat history via viewport
-	b.WriteString(m.viewport.View())
-	b.WriteString("\n")
-
-	// Input
-	b.WriteString(m.styles.Prompt.Render("> "))
-	if m.state == types.StateIdle {
-		b.WriteString(m.textInput.View())
-	} else {
-		b.WriteString(m.styles.StatusText.Render("(processing...)"))
-	}
-	b.WriteString("\n")
-
-	// Help bar
-	b.WriteString(m.renderHelpBar())
-
-	return m.styles.App.Render(b.String())
-}
-
-// renderMessage renders a single chat message.
-func (m Model) renderMessage(msg chatMessage) string {
-	switch msg.role {
-	case "user":
-		return m.styles.UserMessage.Render("You: " + msg.content)
-
-	case "assistant":
-		return m.styles.AssistantMessage.Render("Assistant: " + msg.content)
-
-	case "system":
-		return m.styles.SystemMessage.Render(msg.content)
-
-	case "tool":
-		if msg.tool != nil {
-			return m.renderToolResult(msg.tool)
-		}
-	}
-	return ""
-}
-
-// renderToolResult renders a completed tool execution.
-func (m Model) renderToolResult(t *toolExecution) string {
-	var b strings.Builder
-
-	// Tool header
-	header := fmt.Sprintf("Tool: %s", t.name)
-	b.WriteString(m.styles.ToolName.Render(header))
-
-	// Parameters (compact)
-	if len(t.params) > 0 {
-		params := make([]string, 0, len(t.params))
-		for k, v := range t.params {
-			params = append(params, fmt.Sprintf("%s=%v", k, v))
-		}
-		b.WriteString(" ")
-		b.WriteString(m.styles.ToolParams.Render("(" + strings.Join(params, ", ") + ")"))
-	}
-	b.WriteString("\n")
-
-	// Result
-	if t.success {
-		b.WriteString(m.styles.ToolSuccess.Render("  Success"))
-		if t.duration != "" && t.duration != "0s" {
-			b.WriteString(m.styles.ToolParams.Render(fmt.Sprintf(" (%s)", t.duration)))
-		}
-		b.WriteString("\n")
-		if t.output != "" {
-			// Indent and truncate output
-			output := t.output
-			if len(output) > 300 {
-				output = output[:300] + "..."
-			}
-			lines := strings.Split(output, "\n")
-			for _, line := range lines {
-				if line != "" {
-					b.WriteString(m.styles.ToolOutput.Render("  | " + line))
-					b.WriteString("\n")
-				}
-			}
-		}
-	} else {
-		b.WriteString(m.styles.ToolError.Render("  Failed: " + t.error))
-		b.WriteString("\n")
-	}
-
-	return m.styles.ToolBox.Render(b.String())
-}
-
-// renderToolInProgress renders a tool that's currently executing.
-func (m Model) renderToolInProgress() string {
-	var b strings.Builder
-
-	header := fmt.Sprintf("Tool: %s", m.currentTool.name)
-	b.WriteString(m.styles.ToolName.Render(header))
-
-	if len(m.currentTool.params) > 0 {
-		params := make([]string, 0, len(m.currentTool.params))
-		for k, v := range m.currentTool.params {
-			params = append(params, fmt.Sprintf("%s=%v", k, v))
-		}
-		b.WriteString(" ")
-		b.WriteString(m.styles.ToolParams.Render("(" + strings.Join(params, ", ") + ")"))
-	}
-	b.WriteString("\n")
-	b.WriteString(m.spinner.View())
-	b.WriteString(" ")
-	b.WriteString(m.styles.StatusText.Render("Executing..."))
-
-	return m.styles.ToolBox.Render(b.String())
-}
-
-// renderStatus renders the current processing status.
-func (m Model) renderStatus() string {
-	return fmt.Sprintf("%s %s",
-		m.spinner.View(),
-		m.styles.StateLabel.Render(m.state.String()+"..."),
-	)
-}
-
-// renderHelpBar renders the bottom help bar.
-func (m Model) renderHelpBar() string {
-	help := []string{
-		m.styles.HelpKey.Render("enter") + m.styles.HelpValue.Render(" send"),
-		m.styles.HelpKey.Render("ctrl+c") + m.styles.HelpValue.Render(" quit"),
-		m.styles.HelpKey.Render("↑/↓ pgup/pgdn") + m.styles.HelpValue.Render(" scroll"),
-		m.styles.HelpKey.Render("help") + m.styles.HelpValue.Render(" commands"),
-	}
-	return m.styles.HelpBar.Render(strings.Join(help, "  |  "))
+	return true
 }

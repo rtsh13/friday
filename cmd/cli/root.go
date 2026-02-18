@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"github.com/stratos/cliche/internal/agent"
@@ -23,8 +22,8 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "doclm [query]",
-	Short: "AI-powered telemetry debugging assistant",
+	Use:   "cliche [query]",
+	Short: "AI-powered DevOps debugging assistant",
 	Long: `
   ██████╗██╗     ██╗ ██████╗██╗  ██╗███████╗
  ██╔════╝██║     ██║██╔════╝██║  ██║██╔════╝
@@ -33,32 +32,21 @@ var rootCmd = &cobra.Command{
  ╚██████╗███████╗██║╚██████╗██║  ██║███████╗
   ╚═════╝╚══════╝╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝
 
-  AI-powered CLI tool for debugging telemetry and network issues.
-  Supports gRPC, gNMI, YANG models, core dump analysis, and more.
+  AI-powered CLI tool for debugging DevOps and network issues.
 
 Usage:
-  doclm "Check gRPC health on port 50051"   Run a query
-  doclm --it                                Interactive mode
-  doclm tools                               List available tools
-  doclm config                              View/edit configuration
-
-Examples:
-  doclm "Is the gRPC service on localhost:50051 healthy?"
-  doclm "Analyze TCP connections on eth0 port 8080"
-  doclm "Inspect network buffer settings"
-  doclm --it`,
+  cliche "Check gRPC health on port 50051"
+  cliche --it`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		if interactive {
 			runInteractive()
 			return
 		}
-
 		if len(args) > 0 {
 			runOneShot(args)
 			return
 		}
-
 		cmd.Help()
 	},
 }
@@ -80,6 +68,20 @@ func init() {
 }
 
 func runInteractive() {
+	agentInstance := initAgent()
+	defer agentInstance.Close()
+	ui.Run(agentInstance)
+}
+
+func runOneShot(args []string) {
+	query := strings.Join(args, " ")
+	agentInstance := initAgent()
+	defer agentInstance.Close()
+	ui.RunOneShot(agentInstance, query)
+}
+
+// initAgent loads config, checks LLM connectivity, and returns a ready agent.
+func initAgent() *agent.Agent {
 	cfg, err := loadConfig()
 	if err != nil {
 		fmt.Printf("Warning: Could not load config: %v\n", err)
@@ -87,9 +89,7 @@ func runInteractive() {
 	}
 
 	logger := createLogger()
-	defer logger.Sync()
 
-	// Create agent
 	agentCfg := agent.Config{
 		AppConfig:     cfg,
 		FunctionsPath: "functions.yaml",
@@ -101,9 +101,8 @@ func runInteractive() {
 		printError("Failed to initialize agent", err)
 		os.Exit(1)
 	}
-	defer agentInstance.Close()
 
-	// Check LLM connectivity
+	// Check LLM connectivity.
 	fmt.Print(lipgloss.NewStyle().Foreground(lipgloss.Color("#F59E0B")).Render("Connecting to LLM... "))
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	if err := agentInstance.Ping(ctx); err != nil {
@@ -115,69 +114,15 @@ func runInteractive() {
 	}
 	cancel()
 	fmt.Println(lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render("✓"))
-	fmt.Printf("Using model: %s\n\n", cfg.LLM.Model)
+	fmt.Printf("Using model: %s\n", cfg.LLM.Model)
 
-	// Create and run TUI
-	model := ui.NewModel(func(query string) tea.Cmd {
-		return agentInstance.ProcessQueryCmd(query)
-	})
-
-	p := tea.NewProgram(model, tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
-		fmt.Printf("Error running UI: %v\n", err)
-		os.Exit(1)
-	}
-}
-
-func runOneShot(args []string) {
-	query := strings.Join(args, " ")
-
-	cfg, err := loadConfig()
-	if err != nil {
-		cfg = config.DefaultConfig()
-	}
-
-	logger := createLogger()
-	defer logger.Sync()
-
-	// Create agent
-	agentCfg := agent.Config{
-		AppConfig:     cfg,
-		FunctionsPath: "functions.yaml",
-		Logger:        logger,
-	}
-
-	agentInstance, err := agent.New(agentCfg)
-	if err != nil {
-		printError("Failed to initialize agent", err)
-		os.Exit(1)
-	}
-	defer agentInstance.Close()
-
-	// Process query
-	fmt.Printf("Query: %s\n\n", query)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-
-	event, err := agentInstance.ProcessQuery(ctx, query)
-	if err != nil {
-		printError("Query failed", err)
-		os.Exit(1)
-	}
-
-	// Print results
-	if event.FinalAnswer != "" {
-		fmt.Println(event.FinalAnswer)
-	}
+	return agentInstance
 }
 
 func loadConfig() (*config.Config, error) {
 	if configPath != "" {
 		return config.Load(configPath)
 	}
-
-	// Try standard locations in order of precedence: local overrides base
 	return config.LoadFromPaths(
 		"config.local.yaml",
 		"config.yaml",
@@ -194,19 +139,19 @@ func createLogger() *zap.Logger {
 }
 
 func printError(msg string, err error) {
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444"))
-	fmt.Println(errorStyle.Render(fmt.Sprintf("Error: %s: %v", msg, err)))
+	fmt.Println(lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444")).
+		Render(fmt.Sprintf("Error: %s: %v", msg, err)))
 }
 
 func printConnectionHelp(cfg *config.Config) {
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444"))
 	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#9CA3AF"))
 	cmdStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#06B6D4"))
+	errStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#EF4444"))
 
-	fmt.Println(errorStyle.Render("Could not connect to LLM at " + cfg.LLM.Endpoint))
+	fmt.Println(errStyle.Render("Could not connect to LLM at " + cfg.LLM.Endpoint))
 	fmt.Println()
-	fmt.Println(helpStyle.Render("Make sure vLLM is running:"))
-	fmt.Println(cmdStyle.Render("  docker-compose up -d vllm"))
+	fmt.Println(helpStyle.Render("Make sure Ollama is running:"))
+	fmt.Println(cmdStyle.Render("  ollama serve"))
 	fmt.Println()
 	fmt.Println(helpStyle.Render("Or configure a different endpoint:"))
 	fmt.Println(cmdStyle.Render("  Edit config.yaml and set llm.endpoint"))
