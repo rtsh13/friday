@@ -62,7 +62,8 @@ functions:
     parameters:
       - name: host
         type: string
-        required: true
+        required: false
+        default: "localhost"
         description: "Hostname or IP to scan"
       - name: ports
         type: string
