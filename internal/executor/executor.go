@@ -352,6 +352,18 @@ func (e *Executor) executeExecuteSysctl(params map[string]interface{}) (string, 
 		return "", err
 	}
 
+	// Bug 1 fix: dry-run validates inputs only; does not execute the real sysctl command.
+	isDryRun, _ := getBool(params, "__dry_run", false, false)
+	if isDryRun {
+		return toJSON(map[string]interface{}{
+			"parameter": parameter,
+			"value":     value,
+			"persist":   persist,
+			"dry_run":   true,
+			"success":   true,
+		})
+	}
+
 	result, err := system.ExecuteSysctl(parameter, value, persist)
 	if err != nil {
 		return "", err

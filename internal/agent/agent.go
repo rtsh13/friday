@@ -67,11 +67,13 @@ func New(cfg Config) (*Agent, error) {
 		return nil, fmt.Errorf("failed to initialize RAG pipeline: %w", err)
 	}
 
-	// Initialize LLM client (vLLM).
+	// Initialize LLM client (vLLM) — pass temperature and max_tokens from config.
 	llmClient := llm.NewClient(
 		cfg.AppConfig.LLM.Endpoint,
 		cfg.AppConfig.LLM.Model,
 		time.Duration(cfg.AppConfig.LLM.TimeoutSeconds)*time.Second,
+		cfg.AppConfig.LLM.Temperature,
+		cfg.AppConfig.LLM.MaxTokens,
 	)
 
 	// Initialize executor components.
@@ -199,8 +201,9 @@ func (a *Agent) process(ctx context.Context, query string) (types.AgentEvent, er
 	txResults, execErr := a.txExecutor.ExecuteTransaction(ctx, txReq)
 
 	// Flatten []executor.FunctionResult → []types.ExecutionResult.
+	// Index is set explicitly so the UI skip-dedup logic works correctly.
 	var results []types.ExecutionResult
-	for _, fr := range txResults {
+	for i, fr := range txResults {
 		outputStr := ""
 		if fr.Output != nil {
 			if b, jsonErr := json.Marshal(fr.Output); jsonErr == nil {
@@ -208,6 +211,7 @@ func (a *Agent) process(ctx context.Context, query string) (types.AgentEvent, er
 			}
 		}
 		results = append(results, types.ExecutionResult{
+			Index:    i,
 			Function: types.FunctionCall{Name: fr.FunctionName},
 			Output:   outputStr,
 			Success:  fr.Success,
@@ -216,10 +220,10 @@ func (a *Agent) process(ctx context.Context, query string) (types.AgentEvent, er
 		})
 	}
 
-	// Add to conversation context.
+	// Add sanitized query (not raw input) to conversation context.
 	a.ctxManager.AddMessage(types.Message{
 		Role:      "user",
-		Content:   query,
+		Content:   sanitizedQuery,
 		Timestamp: time.Now(),
 		Functions: results,
 	})

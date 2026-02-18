@@ -10,16 +10,20 @@ import (
 )
 
 type Client struct {
-	endpoint string
-	model    string
-	client   *http.Client
+	endpoint    string
+	model       string
+	temperature float32
+	maxTokens   int
+	client      *http.Client
 }
 
-func NewClient(endpoint, model string, timeout time.Duration) *Client {
+func NewClient(endpoint, model string, timeout time.Duration, temperature float32, maxTokens int) *Client {
 	return &Client{
-		endpoint: endpoint,
-		model:    model,
-		client:   &http.Client{Timeout: timeout},
+		endpoint:    endpoint,
+		model:       model,
+		temperature: temperature,
+		maxTokens:   maxTokens,
+		client:      &http.Client{Timeout: timeout},
 	}
 }
 
@@ -49,15 +53,15 @@ func (c *Client) Generate(ctx context.Context, prompt string) (string, error) {
 		Messages: []ChatMessage{
 			{Role: "user", Content: prompt},
 		},
-		Temperature: 0.1,
-		MaxTokens:   2048,
+		Temperature: c.temperature,
+		MaxTokens:   c.maxTokens,
 	}
-	
+
 	jsonData, err := json.Marshal(req)
 	if err != nil {
 		return "", err
 	}
-	
+
 	httpReq, err := http.NewRequestWithContext(
 		ctx,
 		"POST",
@@ -68,25 +72,25 @@ func (c *Client) Generate(ctx context.Context, prompt string) (string, error) {
 		return "", err
 	}
 	httpReq.Header.Set("Content-Type", "application/json")
-	
+
 	resp, err := c.client.Do(httpReq)
 	if err != nil {
 		return "", fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("LLM returned status %d", resp.StatusCode)
 	}
-	
+
 	var chatResp ChatResponse
 	if err := json.NewDecoder(resp.Body).Decode(&chatResp); err != nil {
 		return "", fmt.Errorf("decode failed: %w", err)
 	}
-	
+
 	if len(chatResp.Choices) == 0 {
 		return "", fmt.Errorf("no response from LLM")
 	}
-	
+
 	return chatResp.Choices[0].Message.Content, nil
 }

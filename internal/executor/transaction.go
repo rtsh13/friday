@@ -412,19 +412,20 @@ func (te *TransactionEngine) runOne(pc phasedCall) (FunctionResult, error) {
 	return fr, nil
 }
 
-// resolveParams resolves ${…} references in pc.Params in-place.
-// resolver.Resolve(string) → (string, error) uses the internal AddResult store.
+// resolveParams resolves ${…} references in pc.Params in-place, preserving
+// native types (int, float64, bool) via ResolveParams/tryResolveNative.
+//
+// Bug 8 fix: previously used resolver.Resolve() which always returns a string,
+// losing native type information (e.g. port 50051 became "50051"). Now uses
+// resolver.ResolveParams() which preserves native types for single-placeholder
+// values and returns a new map without modifying the original.
 func (te *TransactionEngine) resolveParams(pc *phasedCall) error {
-	for k, v := range pc.Params {
-		strVal, ok := v.(string)
-		if !ok {
-			continue
-		}
-		substituted, err := te.resolver.Resolve(strVal)
-		if err != nil {
-			return fmt.Errorf("param %q: %w", k, err)
-		}
-		pc.Params[k] = substituted
+	resolved, err := te.resolver.ResolveParams(pc.Params)
+	if err != nil {
+		return err
+	}
+	if resolved != nil {
+		pc.Params = resolved
 	}
 	return nil
 }

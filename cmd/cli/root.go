@@ -177,10 +177,10 @@ func loadConfig() (*config.Config, error) {
 		return config.Load(configPath)
 	}
 
-	// Try standard locations
+	// Try standard locations in order of precedence: local overrides base
 	return config.LoadFromPaths(
-		"config.yaml",
 		"config.local.yaml",
+		"config.yaml",
 	)
 }
 

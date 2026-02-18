@@ -9,7 +9,6 @@ import (
 
 // EmbeddingClient handles ONNX-based text embedding generation.
 type EmbeddingClient struct {
-	session    *ort.AdvancedSession
 	tokenizer  *BERTTokenizer
 	config     EmbeddingConfig
 	inputNames []string
@@ -42,57 +41,7 @@ func NewEmbeddingClient(cfg EmbeddingConfig) (*EmbeddingClient, error) {
 	inputNames := []string{"input_ids", "attention_mask"}
 	outputName := "output" // Matches Python export: output_names=["output"]
 
-	// Create input tensors (will be replaced during inference)
-	inputShape := ort.NewShape(1, int64(cfg.MaxLength))
-
-	inputIdsTensor, err := ort.NewEmptyTensor[int64](inputShape)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create input_ids tensor: %w", err)
-	}
-
-	attentionMaskTensor, err := ort.NewEmptyTensor[int64](inputShape)
-	if err != nil {
-		inputIdsTensor.Destroy()
-		return nil, fmt.Errorf("failed to create attention_mask tensor: %w", err)
-	}
-
-	// Create output tensor
-	outputShape := ort.NewShape(1, int64(cfg.MaxLength), int64(cfg.Dimension))
-	outputTensor, err := ort.NewEmptyTensor[float32](outputShape)
-	if err != nil {
-		inputIdsTensor.Destroy()
-		attentionMaskTensor.Destroy()
-		return nil, fmt.Errorf("failed to create output tensor: %w", err)
-	}
-
-	// Create session options
-	options, err := ort.NewSessionOptions()
-	if err != nil {
-		inputIdsTensor.Destroy()
-		attentionMaskTensor.Destroy()
-		outputTensor.Destroy()
-		return nil, fmt.Errorf("failed to create session options: %w", err)
-	}
-	defer options.Destroy()
-
-	// Create advanced session
-	session, err := ort.NewAdvancedSession(
-		cfg.ModelPath,
-		inputNames,
-		[]string{outputName},
-		[]ort.ArbitraryTensor{inputIdsTensor, attentionMaskTensor},
-		[]ort.ArbitraryTensor{outputTensor},
-		options,
-	)
-	if err != nil {
-		inputIdsTensor.Destroy()
-		attentionMaskTensor.Destroy()
-		outputTensor.Destroy()
-		return nil, fmt.Errorf("failed to create ONNX session: %w", err)
-	}
-
 	return &EmbeddingClient{
-		session:    session,
 		tokenizer:  tokenizer,
 		config:     cfg,
 		inputNames: inputNames,
@@ -203,9 +152,6 @@ func (c *EmbeddingClient) EmbedBatch(texts []string) ([][]float32, error) {
 
 // Close releases resources held by the embedding client.
 func (c *EmbeddingClient) Close() error {
-	if c.session != nil {
-		c.session.Destroy()
-	}
 	return nil
 }
 
