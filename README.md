@@ -2,8 +2,10 @@
 
 > Debug infrastructure. Not dashboards. Not tickets.
 
-[![Website](https://img.shields.io/badge/Website-tgifriday.vercel.app-2997FF?style=flat-square&logo=vercel&logoColor=white)](https://tgifriday.vercel.app)
-[![DocLM on HuggingFace](https://img.shields.io/badge/DocLM-HuggingFace-FF375F?style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/ashutoshrp06/DocLM)
+[![Dashboard](https://img.shields.io/badge/Dashboard-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://tgifriday.vercel.app)
+[![DocLM](https://img.shields.io/badge/DocLM-FF375F?style=for-the-badge&logo=huggingface&logoColor=white)](https://huggingface.co/ashutoshrp06/DocLM)
+[![Go](https://img.shields.io/badge/Go_1.24.2-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev/)
+[![Qwen2.5-Coder-3B](https://img.shields.io/badge/Qwen2.5--Coder--3B-7C3AED?style=for-the-badge&logo=alibabacloud&logoColor=white)](https://huggingface.co/Qwen/Qwen2.5-Coder-3B)
 
 **Friday** is a production-grade, single-executable CLI tool for network engineers. It combines a fine-tuned large language model (**DocLM**), a fully local RAG pipeline, and an atomic transaction engine to diagnose complex network failures and apply fixes — with guaranteed rollback on failure. All inference runs locally. Not one byte of diagnostic data ever leaves your infrastructure.
 
@@ -372,7 +374,7 @@ To add a new function: declare it in `functions.yaml`, implement its handler in 
 
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
-| CLI | Go 1.21 + Cobra | User interface and interactive loop |
+| CLI | Go 1.24.2 + Cobra | User interface and interactive loop |
 | Fine-tuned LLM | DocLM (Qwen2.5-Coder-3B + LoRA) | Function call generation |
 | Inference server | vLLM | Local LLM serving |
 | Embedding model | ONNX Runtime + MiniLM-L6-v2 | Local embeddings, compiled into binary |
@@ -389,7 +391,7 @@ To add a new function: declare it in `functions.yaml`, implement its handler in 
 ## Prerequisites
 
 - Docker Desktop (or Docker Engine + Docker Compose) installed and running
-- Go 1.21 or later (only needed when building from source)
+- Go 1.24.2 or later (only needed when building from source)
 - Linux host required for full function support (`ss`, `sysctl`, `/proc` filesystem)
 - Root or `sudo` access required for destructive system functions (sysctl modification, service restarts)
 - A trained LoRA adapter placed in `models/lora_adapter/` before first run
@@ -594,7 +596,7 @@ Contributions are welcome. Please read this section before opening a pull reques
 
 **Code standards:**
 
-- All code must be written in Go 1.21 or later
+- All code must be written in Go 1.24.2 or later
 - Follow standard Go formatting (`gofmt`) — CI enforces this
 - All exported functions and types must have godoc comments
 - Error messages must be descriptive and actionable
