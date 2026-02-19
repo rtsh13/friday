@@ -276,7 +276,7 @@ functions:
     timeout_seconds: 35
     
   - name: analyze_grpc_stream
-    description: "Capture and analyze gRPC streaming behavior"
+    description: "Analyze and monitor a gRPC stream for packet drops, flow control events, and message rates. Use this for any request to analyze, monitor, inspect, or check a gRPC stream."
     category: network
     phase: analyze
     reversible: false
@@ -564,6 +564,20 @@ functions:
       errors: array
       violations: array
     timeout_seconds: 15
+
+  - name: read_sysctl_param
+    description: "Read the current value of a kernel network parameter. Use this to inspect any net.* sysctl parameter such as net.core.rmem_max before making changes."
+    category: system
+    phase: read
+    reversible: false
+    parameters:
+      - name: parameter
+        type: string
+        required: true
+        description: "Kernel parameter name (e.g. net.core.rmem_max)"
+    outputs:
+      parameter: string
+      value: string
 
 # ==================== ROLLBACK FUNCTIONS (INTERNAL) ====================
 

@@ -117,6 +117,10 @@ func runSpinner(styles Styles, done chan struct{}) {
 
 // printEvent renders an AgentEvent to stdout.
 func printEvent(event *types.AgentEvent, styles Styles) {
+	if event.Error != nil {
+		fmt.Println(styles.ToolError.Render("  Error: " + event.Error.Error()))
+		return
+	}
 	// Show agent message if present (reasoning/status).
 	if event.Message != "" {
 		printSection("Reasoning", event.Message, styles)

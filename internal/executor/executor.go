@@ -75,6 +75,9 @@ func (e *Executor) Execute(fn types.FunctionCall) (string, error) {
 
 	case "restore_sysctl_value":
 		return e.executeRestoreSysctlValue(fn.Params)
+	
+	case "read_sysctl_param":
+    	return e.executeReadSysctl(fn.Params)
 
 	// ==================== Debugging Tools (Placeholder) ====================
 	case "analyze_core_dump":
@@ -370,6 +373,18 @@ func (e *Executor) executeExecuteSysctl(params map[string]interface{}) (string, 
 	}
 
 	return toJSON(result)
+}
+
+func (e *Executor) executeReadSysctl(params map[string]interface{}) (string, error) {
+    parameter, err := getString(params, "parameter", true, "")
+    if err != nil {
+        return "", err
+    }
+    result, err := system.ReadSysctl(parameter)
+    if err != nil {
+        return "", err
+    }
+    return toJSON(result)
 }
 
 // executeRestoreSysctlValue restores a sysctl parameter to a previous value.
