@@ -2,6 +2,9 @@
 
 > Debug infrastructure. Not dashboards. Not tickets.
 
+[![Website](https://img.shields.io/badge/Website-tgifriday.vercel.app-2997FF?style=flat-square&logo=vercel&logoColor=white)](https://tgifriday.vercel.app)
+[![DocLM on HuggingFace](https://img.shields.io/badge/DocLM-HuggingFace-FF375F?style=flat-square&logo=huggingface&logoColor=white)](https://huggingface.co/ashutoshrp06/DocLM)
+
 **Friday** is a production-grade, single-executable CLI tool for network engineers. It combines a fine-tuned large language model (**DocLM**), a fully local RAG pipeline, and an atomic transaction engine to diagnose complex network failures and apply fixes — with guaranteed rollback on failure. All inference runs locally. Not one byte of diagnostic data ever leaves your infrastructure.
 
 ---
