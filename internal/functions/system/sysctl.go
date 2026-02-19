@@ -81,7 +81,7 @@ func ExecuteSysctl(parameter string, value string, persist bool) (map[string]int
 		)
 	}
 
-	// ── 3. Safety check – never allow setting a value to 0 ───────────────────
+	// ── 3. Safety check never allow setting a value to 0 ───────────────────
 	// Setting core network buffers to 0 can break networking entirely.
 	isZero := true
 	for _, part := range strings.Fields(trimmedValue) {
@@ -201,21 +201,21 @@ func RestoreSysctlValue(parameter string, value string) error {
 // ReadSysctl reads the current value of a kernel parameter from /proc/sys/.
 // This is a read-only operation with no side effects.
 func ReadSysctl(parameter string) (map[string]interface{}, error) {
-    if !paramValidationRegex.MatchString(parameter) {
-        return nil, fmt.Errorf(
-            "invalid parameter %q: must match pattern net.<path> (e.g. net.core.rmem_max)",
-            parameter,
-        )
-    }
-    procPath := ParamToProcPath(parameter)
-    value, err := readCurrentValue(procPath)
-    if err != nil {
-        return nil, fmt.Errorf("failed to read %s: %w", parameter, err)
-    }
-    return map[string]interface{}{
-        "parameter": parameter,
-        "value":     value,
-    }, nil
+	if !paramValidationRegex.MatchString(parameter) {
+		return nil, fmt.Errorf(
+			"invalid parameter %q: must match pattern net.<path> (e.g. net.core.rmem_max)",
+			parameter,
+		)
+	}
+	procPath := ParamToProcPath(parameter)
+	value, err := readCurrentValue(procPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read %s: %w", parameter, err)
+	}
+	return map[string]interface{}{
+		"parameter": parameter,
+		"value":     value,
+	}, nil
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -251,7 +251,7 @@ func persistSysctl(parameter, value string) error {
 //   - Appends a new line if the parameter is not yet present
 //   - Writes atomically via a temp-file + rename to avoid partial writes
 func PersistSysctlToFile(path, parameter, value string) error {
-	// Read existing file (it may not exist yet – that's fine).
+	// Read existing file (it may not exist yet that's fine).
 	existing := []string{}
 	f, err := os.Open(path)
 	if err != nil && !os.IsNotExist(err) {

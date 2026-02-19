@@ -113,7 +113,7 @@ func initAgent() *agent.Agent {
 		os.Exit(1)
 	}
 	cancel()
-	fmt.Println(lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render("✓"))
+	fmt.Println(lipgloss.NewStyle().Foreground(lipgloss.Color("#10B981")).Render(""))
 	fmt.Printf("Using model: %s\n", cfg.LLM.Model)
 
 	return agentInstance

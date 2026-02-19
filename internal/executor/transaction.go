@@ -148,7 +148,7 @@ func (te *TransactionEngine) execute(
 		}
 		fmt.Printf("⚠  Read phase had failures, continuing to next phase (skip_on_error)\n")
 	}
-	fmt.Printf("✓ Read phase complete (%d function(s))\n", len(reads))
+	fmt.Printf(" Read phase complete (%d function(s))\n", len(reads))
 
 	// ── PHASE 2: ANALYZE ──────────────────────────────────────────────────────
 	if len(analyses) > 0 {
@@ -161,7 +161,7 @@ func (te *TransactionEngine) execute(
 			}
 			fmt.Printf("⚠  Analyze phase had failures, continuing to next phase (skip_on_error)\n")
 		}
-		fmt.Printf("✓ Analyze phase complete (%d function(s))\n", len(analyses))
+		fmt.Printf(" Analyze phase complete (%d function(s))\n", len(analyses))
 	}
 
 	// ── GATE + PHASE 3: MODIFY ────────────────────────────────────────────────
@@ -171,7 +171,7 @@ func (te *TransactionEngine) execute(
 			return allResults, err
 		}
 		if req.DryRunOnly {
-			fmt.Println("✓ Dry-run complete. No changes were made (--dry-run mode).")
+			fmt.Println(" Dry-run complete. No changes were made (--dry-run mode).")
 			return allResults, nil
 		}
 
@@ -179,18 +179,18 @@ func (te *TransactionEngine) execute(
 		results, err = te.executeModifyPhase(ctx, modifies, req.Strategy)
 		allResults = append(allResults, results...)
 		if err != nil {
-			fmt.Println("\n⚠  Failure detected – initiating rollback …")
+			fmt.Println("\n⚠  Failure detected initiating rollback …")
 			if rbErr := te.snapshotManager.Rollback(); rbErr != nil {
 				fmt.Printf("⚠  Rollback error (manual intervention may be required): %v\n", rbErr)
 			} else {
-				fmt.Println("✓ Rollback complete – system restored to previous state.")
+				fmt.Println(" Rollback complete system restored to previous state.")
 			}
 			return allResults, fmt.Errorf("modify phase failed (rolled back): %w", err)
 		}
-		fmt.Printf("✓ Modify phase complete (%d function(s))\n", len(modifies))
+		fmt.Printf(" Modify phase complete (%d function(s))\n", len(modifies))
 	}
 
-	fmt.Println("\n✓ Transaction committed successfully.")
+	fmt.Println("\n Transaction committed successfully.")
 	return allResults, nil
 }
 
@@ -234,7 +234,7 @@ func (te *TransactionEngine) executePhase(
 			results = append(results, FunctionResult{
 				FunctionName: pc.Name, Phase: pc.phase, Skipped: true,
 			})
-			fmt.Printf("  ↷ [%d] %s (skipped – dependency failed)\n", i+1, pc.Name)
+			fmt.Printf("  ↷ [%d] %s (skipped dependency failed)\n", i+1, pc.Name)
 			continue
 		}
 
@@ -253,13 +253,13 @@ func (te *TransactionEngine) executePhase(
 
 		if err != nil {
 			if strategy == StrategySkipOnError {
-				fmt.Printf("  ✗ [%d] %s FAILED (%v) – skipping dependents\n", i+1, pc.Name, err)
+				fmt.Printf("  [%d] %s FAILED (%v) skipping dependents\n", i+1, pc.Name, err)
 				te.markDependentsSkipped(i, fns, skipped)
 				continue
 			}
 			return results, fmt.Errorf("[%s] %w", pc.Name, err)
 		}
-		fmt.Printf("  ✓ [%d] %s  (%.2fs)\n", i+1, pc.Name, fr.Duration.Seconds())
+		fmt.Printf("   [%d] %s  (%.2fs)\n", i+1, pc.Name, fr.Duration.Seconds())
 	}
 	return results, nil
 }
@@ -280,7 +280,7 @@ func (te *TransactionEngine) executeModifyPhase(
 			results = append(results, FunctionResult{
 				FunctionName: pc.Name, Phase: pc.phase, Skipped: true,
 			})
-			fmt.Printf("  ↷ [%d] %s (skipped – dependency failed)\n", i+1, pc.Name)
+			fmt.Printf("  ↷ [%d] %s (skipped dependency failed)\n", i+1, pc.Name)
 			continue
 		}
 
@@ -296,7 +296,7 @@ func (te *TransactionEngine) executeModifyPhase(
 
 		// Snapshot BEFORE change. TakeSnapshot(name, params) → (*Snapshot, error)
 		if _, snapErr := te.snapshotManager.TakeSnapshot(pc.Name, pc.Params); snapErr != nil {
-			fmt.Printf("  ⚠  [%d] %s – snapshot failed (%v); operation will not be reversible\n",
+			fmt.Printf("  ⚠  [%d] %s snapshot failed (%v); operation will not be reversible\n",
 				i+1, pc.Name, snapErr)
 		}
 
@@ -308,13 +308,13 @@ func (te *TransactionEngine) executeModifyPhase(
 				return results, fmt.Errorf("[%s] %w", pc.Name, err)
 			}
 			if strategy == StrategySkipOnError {
-				fmt.Printf("  ✗ [%d] %s FAILED (%v) – skipping dependents\n", i+1, pc.Name, err)
+				fmt.Printf("  [%d] %s FAILED (%v) skipping dependents\n", i+1, pc.Name, err)
 				te.markDependentsSkipped(i, fns, skipped)
 				continue
 			}
 			return results, fmt.Errorf("[%s] %w", pc.Name, err)
 		}
-		fmt.Printf("  ✓ [%d] %s  (%.2fs)\n", i+1, pc.Name, fr.Duration.Seconds())
+		fmt.Printf("   [%d] %s  (%.2fs)\n", i+1, pc.Name, fr.Duration.Seconds())
 	}
 	return results, nil
 }
@@ -350,7 +350,7 @@ func (te *TransactionEngine) preModifyGate(
 		previews = append(previews, preview{pc: pc, params: pc.Params})
 	}
 
-	fmt.Println("✓ Dry-run validation passed.\n")
+	fmt.Println(" Dry-run validation passed.\n")
 	if dryRunOnly {
 		return nil
 	}
@@ -369,7 +369,7 @@ func (te *TransactionEngine) preModifyGate(
 		}
 		critical := "no"
 		if p.pc.Critical {
-			critical = "yes – failure triggers rollback"
+			critical = "yes failure triggers rollback"
 		}
 		fmt.Printf("      %-24s %s\n", "critical:", critical)
 	}
@@ -382,7 +382,7 @@ func (te *TransactionEngine) preModifyGate(
 		return fmt.Errorf("could not read confirmation: %w", err)
 	}
 	if answer := strings.TrimSpace(strings.ToLower(line)); answer != "y" && answer != "yes" {
-		fmt.Println("Aborted by operator – no changes were made.")
+		fmt.Println("Aborted by operator no changes were made.")
 		return ErrUserDeclined
 	}
 	return nil

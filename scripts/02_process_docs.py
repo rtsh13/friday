@@ -69,7 +69,7 @@ class DocumentProcessor:
             chunks = self.process_file(str(file_path))
             all_chunks.extend(chunks)
             if chunks:
-                print(f"✓ {file_path.name}: {len(chunks)} chunks")
+                print(f" {file_path.name}: {len(chunks)} chunks")
         return all_chunks
 
     def quality_filter(self, chunks):

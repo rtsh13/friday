@@ -104,7 +104,7 @@ func buildConversationHistory(history []types.Message) string {
 		if len(msg.Functions) > 0 {
 			sb.WriteString("  Tool Results:\n")
 			for _, fn := range msg.Functions {
-				status := "✓"
+				status := ""
 				if !fn.Success {
 					status = "✗"
 				}

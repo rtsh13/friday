@@ -26,7 +26,7 @@ def main():
     output = "../data/processed/chunks_with_embeddings.json"
     with open(output, "w") as f:
         json.dump(chunks, f, indent=2)
-    print(f"✓ Saved to {output}")
+    print(f" Saved to {output}")
 
 
 if __name__ == "__main__":

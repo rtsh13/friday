@@ -42,14 +42,14 @@ func TestE2E_EndToEnd_FullWorkflow(t *testing.T) {
 	}
 
 	if err != nil {
-		t.Logf("  ⚠️  Could not load functions.yaml from any path")
+		t.Logf("    Could not load functions.yaml from any path")
 	}
 
 	functionList := functionRegistry.List()
 	if len(functionList) == 0 {
-		t.Logf("  ⚠️  Registry is empty (may be OK if functions.yaml not found)")
+		t.Logf("    Registry is empty (may be OK if functions.yaml not found)")
 	} else {
-		t.Logf("  ✓ Loaded %d functions from registry", len(functionList))
+		t.Logf("   Loaded %d functions from registry", len(functionList))
 		t.Logf("  Available functions:")
 		for _, name := range functionList {
 			fn, _ := functionRegistry.Get(name)
@@ -67,7 +67,7 @@ func TestE2E_EndToEnd_FullWorkflow(t *testing.T) {
 	for _, fnName := range criticalFunctions {
 		fn, exists := functionRegistry.Get(fnName)
 		if exists {
-			t.Logf("  ✓ %s found", fnName)
+			t.Logf("   %s found", fnName)
 			t.Logf("    - Description: %s", fn.Description)
 			t.Logf("    - Category: %s", fn.Category)
 			t.Logf("    - Required params: %d", countRequiredParams(fn))
@@ -83,7 +83,7 @@ func TestE2E_EndToEnd_FullWorkflow(t *testing.T) {
 	// ============================================================
 	t.Logf("\nSTEP 3: Initializing executor...\n")
 	ex := executor.NewExecutor(logger)
-	t.Logf("  ✓ Executor created")
+	t.Logf("   Executor created")
 
 	// ============================================================
 	// STEP 4: Test function execution pipeline
@@ -147,21 +147,21 @@ func TestE2E_EndToEnd_FullWorkflow(t *testing.T) {
 
 		if err != nil {
 			if tc.expectError {
-				t.Logf("      ✓ Got expected error: %v", shortenError(fmt.Sprint(err)))
+				t.Logf("       Got expected error: %v", shortenError(fmt.Sprint(err)))
 				errorHandlingCount++
 				failureCount++
 			} else {
-				t.Logf("      ✗ Unexpected error: %v", err)
+				t.Logf("      Unexpected error: %v", err)
 				failureCount++
 			}
 		} else {
 			// Parse and validate result
 			var resultMap map[string]interface{}
 			if err := json.Unmarshal([]byte(result), &resultMap); err != nil {
-				t.Logf("      ✗ Result is not valid JSON: %v", err)
+				t.Logf("      Result is not valid JSON: %v", err)
 				failureCount++
 			} else {
-				t.Logf("      ✓ Success with valid JSON response")
+				t.Logf("       Success with valid JSON response")
 				t.Logf("         Fields: %v", getKeys(resultMap))
 				successCount++
 			}
@@ -213,9 +213,9 @@ func TestE2E_EndToEnd_FullWorkflow(t *testing.T) {
 		t.Logf("  [%d] %s", i+1, tc.name)
 		_, err := ex.Execute(tc.call)
 		if err == nil {
-			t.Logf("      ✗ Expected error but got none")
+			t.Logf("      Expected error but got none")
 		} else if strings.Contains(fmt.Sprint(err), tc.expectedErr) {
-			t.Logf("      ✓ Got expected error")
+			t.Logf("       Got expected error")
 		} else {
 			t.Logf("      ? Got error but different message: %v", err)
 		}
@@ -276,18 +276,18 @@ func TestE2E_EndToEnd_FullWorkflow(t *testing.T) {
 				if strings.Contains(errStr, "executable file not found") ||
 					strings.Contains(errStr, "context deadline") ||
 					strings.Contains(errStr, "connection") {
-					t.Logf("      ✓ Type conversion succeeded (got environment error as expected)")
+					t.Logf("       Type conversion succeeded (got environment error as expected)")
 				} else {
 					t.Logf("      ? Conversion worked but got runtime error: %v", shortenError(errStr))
 				}
 			} else {
-				t.Logf("      ✓ Type conversion succeeded")
+				t.Logf("       Type conversion succeeded")
 			}
 		} else {
 			if err != nil {
-				t.Logf("      ✓ Type conversion correctly rejected")
+				t.Logf("       Type conversion correctly rejected")
 			} else {
-				t.Logf("      ✗ Should have rejected but succeeded")
+				t.Logf("      Should have rejected but succeeded")
 			}
 		}
 	}
@@ -323,21 +323,21 @@ func TestE2E_EndToEnd_FullWorkflow(t *testing.T) {
 		case <-doneChan:
 			completed++
 		case <-timeout:
-			t.Logf("  ✗ Timeout waiting for concurrent execution")
+			t.Logf("  Timeout waiting for concurrent execution")
 			break
 		}
 	}
 
-	t.Logf("  ✓ Concurrent execution: %d/%d completed", completed, numConcurrent)
+	t.Logf("   Concurrent execution: %d/%d completed", completed, numConcurrent)
 
 	// ============================================================
 	// FINAL SUMMARY
 	// ============================================================
 	t.Logf("\n=== WORKFLOW TEST COMPLETED ===")
-	t.Logf("✓ All stages executed successfully")
-	t.Logf("✓ Executor pipeline working correctly")
-	t.Logf("✓ Error handling in place")
-	t.Logf("✓ Parameter validation working\n")
+	t.Logf(" All stages executed successfully")
+	t.Logf(" Executor pipeline working correctly")
+	t.Logf(" Error handling in place")
+	t.Logf(" Parameter validation working\n")
 }
 
 // Helper functions

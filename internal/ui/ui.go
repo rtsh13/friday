@@ -154,7 +154,7 @@ func printSection(title, body string, styles Styles) {
 
 // printToolResult renders a single tool execution result.
 func printToolResult(result types.ExecutionResult, styles Styles) {
-	status := styles.ToolSuccess.Render("✓")
+	status := styles.ToolSuccess.Render("")
 	if !result.Success {
 		status = styles.ToolError.Render("✗")
 	}

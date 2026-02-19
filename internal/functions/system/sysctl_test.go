@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// ─── ExecuteSysctl – Input Validation ────────────────────────────────────────
+// ─── ExecuteSysctl Input Validation ────────────────────────────────────────
 
 func TestExecuteSysctl_InvalidParameter_NoNetPrefix(t *testing.T) {
 	_, err := ExecuteSysctl("kernel.hostname", "myhost", false)
@@ -36,7 +36,7 @@ func TestExecuteSysctl_InvalidParameter_JustNet(t *testing.T) {
 }
 
 func TestExecuteSysctl_InvalidParameter_WithSlash(t *testing.T) {
-	// Slashes should be rejected – parameter names use dots, not slashes.
+	// Slashes should be rejected parameter names use dots, not slashes.
 	_, err := ExecuteSysctl("net/core/rmem_max", "212992", false)
 	if err == nil {
 		t.Fatal("expected error for parameter with slashes, got nil")
@@ -240,7 +240,7 @@ func TestPersistSysctl_TupleValue(t *testing.T) {
 	}
 }
 
-// ─── RestoreSysctlValue – Input Validation ───────────────────────────────────
+// ─── RestoreSysctlValue Input Validation ───────────────────────────────────
 
 func TestRestoreSysctlValue_InvalidParameter(t *testing.T) {
 	err := RestoreSysctlValue("vm.swappiness", "60")
@@ -286,7 +286,7 @@ func TestExecuteSysctl_LiveRead_NonDestructive(t *testing.T) {
 	}
 	currentValue := strings.TrimSpace(string(currentContent))
 
-	// Set it to the SAME value – non-destructive.
+	// Set it to the SAME value non-destructive.
 	result, err := ExecuteSysctl("net.core.rmem_max", currentValue, false)
 	if err != nil {
 		t.Fatalf("ExecuteSysctl failed: %v", err)

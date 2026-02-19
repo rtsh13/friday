@@ -28,13 +28,13 @@ def export_model():
         },
         opset_version=14,
     )
-    print("✓ Model exported")
+    print(" Model exported")
 
     tokenizer = model.tokenizer
     vocab = tokenizer.get_vocab()
     with open("vocab.json", "w") as f:
         json.dump(vocab, f)
-    print("✓ Vocabulary saved")
+    print(" Vocabulary saved")
 
 
 if __name__ == "__main__":

@@ -53,7 +53,7 @@ def main():
         client.upsert(collection_name=collection, points=batch)
         print(f"Indexed {min(i + batch_size, len(points))}/{len(points)}", end="\r")
 
-    print(f"\n✓ Indexed {len(points)} chunks")
+    print(f"\n Indexed {len(points)} chunks")
 
     # Verify
     info = client.get_collection(collection)

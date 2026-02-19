@@ -279,7 +279,7 @@ func (a *Agent) buildFinalAnswer(llmResp *types.LLMResponse, results []types.Exe
 	if len(results) > 0 {
 		sb.WriteString("**Execution Results:**\n")
 		for i, result := range results {
-			status := "✓"
+			status := ""
 			if !result.Success {
 				status = "✗"
 			}
