@@ -1,0 +1,39 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    restart: unless-stopped
+
+  vllm:
+    image: vllm/vllm-openai:v0.8.5
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - hf_model_cache:/root/.cache/huggingface
+    ports:
+      - "8000:8000"
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=0
+      - VLLM_USE_V1=0
+    command: >
+      --model ashutoshrp06/DocLM
+      --dtype half
+      --max-model-len 4096
+      --gpu-memory-utilization 0.95
+      --enforce-eager
+      --swap-space 2
+    shm_size: '4gb'
+    restart: unless-stopped
+
+volumes:
+  qdrant_storage:
+  hf_model_cache:
