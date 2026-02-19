@@ -195,6 +195,7 @@
     .btn-glass:hover { background: rgba(255,255,255,0.11); border-color: var(--border-h); }
     .btn svg { width: 15px; height: 15px; flex-shrink: 0; }
 
+    /* TERMINAL */
     .hero-terminal {
       margin-top: 3.5rem;
       width: 100%; max-width: 660px;
@@ -204,6 +205,7 @@
       overflow: hidden;
       box-shadow: 0 40px 80px rgba(0,0,0,0.6), 0 0 80px rgba(41,151,255,0.08);
       animation: rise 0.7s 0.32s cubic-bezier(0.22,1,0.36,1) both;
+      text-align: left;
     }
     .term-bar {
       background: var(--bg2);
@@ -227,11 +229,21 @@
       font-size: 0.81rem;
       line-height: 1.9;
     }
+    .term-line-cmd {
+      display: block;
+      margin-bottom: 4px;
+    }
+    .term-line {
+      display: grid;
+      grid-template-columns: 90px 1fr;
+      margin-left: 14px;
+      align-items: start;
+    }
     .tc-p  { color: var(--blue); }
     .tc-c  { color: var(--white); }
     .tc-d  { color: var(--gray3); }
-    .tc-ok { color: var(--blue-l); }
-    .tc-w  { color: var(--orange); }
+    .tc-ok { color: var(--blue-l); font-weight: 500; }
+    .tc-w  { color: var(--orange); font-weight: 500; }
     .tc-cur {
       display: inline-block; width: 8px; height: 1em;
       background: var(--blue); vertical-align: text-bottom;
@@ -484,10 +496,9 @@
     <li><a href="#how">How It Works</a></li>
     <li><a href="#features">Features</a></li>
     <li><a href="#doclm">DocLM</a></li>
-    <li><a href="#domains">Coverage</a></li>
   </ul>
   <div class="nav-actions">
-    <a href="https://huggingface.co/your-org/doclm" target="_blank" class="nav-btn nav-btn-ghost">HuggingFace</a>
+    <a href="https://huggingface.co/ashutoshrp06/DocLM" target="_blank" class="nav-btn nav-btn-ghost">HuggingFace</a>
     <a href="https://github.com/rtsh13/friday" target="_blank" class="nav-btn nav-btn-fill">GitHub</a>
   </div>
 </nav>
@@ -533,15 +544,34 @@
       <span class="term-title">Friday — zsh</span>
     </div>
     <div class="term-body">
-      <div><span class="tc-p">$</span> <span class="tc-c">friday "why is pod payment-svc crashing in prod?"</span></div>
-      <div class="tc-d">&nbsp;</div>
-      <div><span class="tc-ok">&#9654; READ&nbsp;&nbsp;&nbsp;</span> <span class="tc-d">Fetching pod logs and events [payment-svc-7d9b8c]</span></div>
-      <div><span class="tc-ok">&#9654; READ&nbsp;&nbsp;&nbsp;</span> <span class="tc-d">Checking node resource pressure [node-03]</span></div>
-      <div><span class="tc-w">&#9654; ANALYZE</span> <span class="tc-d">OOMKilled &mdash; memory limit 256Mi, RSS 301Mi</span></div>
-      <div><span class="tc-w">&#9654; ANALYZE</span> <span class="tc-d">Correlating with 14:22 traffic spike (+340%)</span></div>
-      <div><span class="tc-ok">&#9654; MODIFY&nbsp;</span> <span class="tc-d">Recommend: increase limits to 512Mi, add HPA</span></div>
-      <div class="tc-d">&nbsp;</div>
-      <div><span class="tc-p">$</span> <span class="tc-cur"></span></div>
+      <div class="term-line-cmd">
+        <span class="tc-p">$</span> <span class="tc-c">friday "why is pod payment-svc crashing in prod?"</span>
+      </div>
+
+      <div class="term-line">
+        <span class="tc-ok">&#9654; READ</span>
+        <span class="tc-d">Fetching pod logs and events [payment-svc-7d9b8c]</span>
+      </div>
+      <div class="term-line">
+        <span class="tc-ok">&#9654; READ</span>
+        <span class="tc-d">Checking node resource pressure [node-03]</span>
+      </div>
+      <div class="term-line">
+        <span class="tc-w">&#9654; ANALYZE</span>
+        <span class="tc-d">OOMKilled &mdash; memory limit 256Mi, RSS 301Mi</span>
+      </div>
+      <div class="term-line">
+        <span class="tc-w">&#9654; ANALYZE</span>
+        <span class="tc-d">Correlating with 14:22 traffic spike (+340%)</span>
+      </div>
+      <div class="term-line">
+        <span class="tc-ok">&#9654; MODIFY</span>
+        <span class="tc-d">Recommend: increase limits to 512Mi, add HPA</span>
+      </div>
+
+      <div class="term-line-cmd" style="margin-top: 6px;">
+        <span class="tc-p">$</span> <span class="tc-cur"></span>
+      </div>
     </div>
   </div>
 </section>
