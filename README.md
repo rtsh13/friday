@@ -1,10 +1,17 @@
-# Friday — AI-Powered Network Telemetry Debugger
 
-> Debug infrastructure. Not dashboards. Not tickets.
+<p align="center">
+  <img src="assets/logo.png" alt="Friday — Single-Executable CLI" width="480" />
+</p>
 
-[![Dashboard](https://img.shields.io/badge/Dashboard-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://tgifriday.vercel.app)
-[![DocLM](https://img.shields.io/badge/DocLM-FF375F?style=for-the-badge&logo=huggingface&logoColor=white)](https://huggingface.co/ashutoshrp06/DocLM)
-[![Go](https://img.shields.io/badge/Go_1.24.2-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev/)
+<h1 align="center">AI-Powered Command Line Interface</h1>
+
+<p align="center"><em>Debug infrastructure. Not dashboards. Not tickets.</em></p>
+
+<p align="center">
+  <a href="https://tgifriday.vercel.app"><img src="https://img.shields.io/badge/Dashboard-000000?style=for-the-badge&logo=vercel&logoColor=white" alt="Dashboard" /></a>
+  <a href="https://huggingface.co/ashutoshrp06/DocLM"><img src="https://img.shields.io/badge/DocLM-FF375F?style=for-the-badge&logo=huggingface&logoColor=white" alt="DocLM" /></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go_1.24.2-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go" /></a>
+</p>
 
 **Friday** is a production-grade, single-executable CLI tool for network engineers. It combines a fine-tuned large language model (**DocLM**), a fully local RAG pipeline, and an atomic transaction engine to diagnose complex network failures and apply fixes — with guaranteed rollback on failure. All inference runs locally. Not one byte of diagnostic data ever leaves your infrastructure.
 
