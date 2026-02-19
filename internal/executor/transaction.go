@@ -126,7 +126,7 @@ func (te *TransactionEngine) execute(
 ) ([]FunctionResult, error) {
 
 	if req.Strategy == "" {
-		req.Strategy = StrategyStopOnError
+		req.Strategy = StrategySkipOnError
 	}
 
 	confirmInput := req.ConfirmationInput
@@ -143,7 +143,10 @@ func (te *TransactionEngine) execute(
 	results, err := te.executePhase(ctx, reads, req.Strategy)
 	allResults = append(allResults, results...)
 	if err != nil {
-		return allResults, fmt.Errorf("read phase failed: %w", err)
+		if req.Strategy == StrategyStopOnError {
+			return allResults, fmt.Errorf("read phase failed: %w", err)
+		}
+		fmt.Printf("⚠  Read phase had failures, continuing to next phase (skip_on_error)\n")
 	}
 	fmt.Printf("✓ Read phase complete (%d function(s))\n", len(reads))
 
@@ -153,7 +156,10 @@ func (te *TransactionEngine) execute(
 		results, err = te.executePhase(ctx, analyses, req.Strategy)
 		allResults = append(allResults, results...)
 		if err != nil {
-			return allResults, fmt.Errorf("analyze phase failed: %w", err)
+			if req.Strategy == StrategyStopOnError {
+				return allResults, fmt.Errorf("analyze phase failed: %w", err)
+			}
+			fmt.Printf("⚠  Analyze phase had failures, continuing to next phase (skip_on_error)\n")
 		}
 		fmt.Printf("✓ Analyze phase complete (%d function(s))\n", len(analyses))
 	}

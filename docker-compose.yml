@@ -27,7 +27,7 @@ services:
     command: >
       --model /models/friday
       --dtype half
-      --max-model-len 1024
+      --max-model-len 4096
       --gpu-memory-utilization 0.95
       --enforce-eager
       --swap-space 2

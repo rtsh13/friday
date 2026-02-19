@@ -68,9 +68,12 @@ func New(cfg Config) (*Agent, error) {
 	}
 
 	// Initialize RAG pipeline with ONNX embeddings.
+	// Non-fatal: if ONNX runtime or Qdrant is unavailable the agent
+	// continues without retrieval context (skipped gracefully in process()).
 	ragPipeline, err := rag.NewPipeline(cfg.AppConfig, cfg.Logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize RAG pipeline: %w", err)
+		cfg.Logger.Warn("RAG pipeline unavailable, continuing without retrieval", zap.Error(err))
+		ragPipeline = nil
 	}
 
 	// Initialize LLM client (vLLM) — pass temperature and max_tokens from config.
@@ -150,10 +153,14 @@ func (a *Agent) process(ctx context.Context, query string) (types.AgentEvent, er
 	sanitizedQuery := a.inputValidator.Sanitize(query)
 
 	// Retrieve context from RAG.
-	chunks, err := a.ragPipeline.Retrieve(ctx, sanitizedQuery)
-	if err != nil {
-		a.logger.Warn("RAG retrieval failed, continuing without context", zap.Error(err))
-		chunks = nil
+	var chunks []types.RetrievedChunk
+	if a.ragPipeline != nil {
+		var ragErr error
+		chunks, ragErr = a.ragPipeline.Retrieve(ctx, sanitizedQuery)
+		if ragErr != nil {
+			a.logger.Warn("RAG retrieval failed, continuing without context", zap.Error(ragErr))
+			chunks = nil
+		}
 	}
 
 	a.logger.Info("Retrieved context", zap.Int("chunks_found", len(chunks)))

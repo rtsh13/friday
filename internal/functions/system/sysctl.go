@@ -198,6 +198,26 @@ func RestoreSysctlValue(parameter string, value string) error {
 	return nil
 }
 
+// ReadSysctl reads the current value of a kernel parameter from /proc/sys/.
+// This is a read-only operation with no side effects.
+func ReadSysctl(parameter string) (map[string]interface{}, error) {
+    if !paramValidationRegex.MatchString(parameter) {
+        return nil, fmt.Errorf(
+            "invalid parameter %q: must match pattern net.<path> (e.g. net.core.rmem_max)",
+            parameter,
+        )
+    }
+    procPath := ParamToProcPath(parameter)
+    value, err := readCurrentValue(procPath)
+    if err != nil {
+        return nil, fmt.Errorf("failed to read %s: %w", parameter, err)
+    }
+    return map[string]interface{}{
+        "parameter": parameter,
+        "value":     value,
+    }, nil
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 // ParamToProcPath converts a sysctl parameter name to its /proc/sys path.

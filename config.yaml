@@ -28,7 +28,7 @@ executor:
   retry_backoff_seconds: 1
 
 conversation:
-  max_messages: 10
+  max_messages: 3
   max_tokens: 4000
 
 ui:
