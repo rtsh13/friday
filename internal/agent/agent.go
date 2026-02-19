@@ -9,14 +9,14 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/stratos/cliche/internal/config"
-	ctxmgr "github.com/stratos/cliche/internal/context"
-	"github.com/stratos/cliche/internal/executor"
-	"github.com/stratos/cliche/internal/functions"
-	"github.com/stratos/cliche/internal/llm"
-	"github.com/stratos/cliche/internal/rag"
-	"github.com/stratos/cliche/internal/types"
-	"github.com/stratos/cliche/internal/validator"
+	"github.com/friday/internal/config"
+	ctxmgr "github.com/friday/internal/context"
+	"github.com/friday/internal/executor"
+	"github.com/friday/internal/functions"
+	"github.com/friday/internal/llm"
+	"github.com/friday/internal/rag"
+	"github.com/friday/internal/types"
+	"github.com/friday/internal/validator"
 	"go.uber.org/zap"
 )
 

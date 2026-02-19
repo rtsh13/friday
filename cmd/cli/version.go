@@ -31,7 +31,7 @@ func runVersion(cmd *cobra.Command, args []string) {
 	valueStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#06B6D4"))
 
-	fmt.Println(titleStyle.Render("CLIche"))
+	fmt.Println(titleStyle.Render("friday"))
 	fmt.Println()
 	fmt.Printf("%s %s\n", labelStyle.Render("Version:"), valueStyle.Render(Version))
 	fmt.Printf("%s %s\n", labelStyle.Render("Git Commit:"), valueStyle.Render(GitCommit))

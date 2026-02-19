@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stratos/cliche/internal/types"
+	"github.com/friday/internal/types"
 	"go.uber.org/zap"
 )
 

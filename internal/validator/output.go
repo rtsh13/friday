@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/stratos/cliche/internal/types"
+	"github.com/friday/internal/types"
 )
 
 type OutputValidator struct{}

@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/stratos/cliche/internal/functions/debugging"
-	"github.com/stratos/cliche/internal/functions/network"
-	"github.com/stratos/cliche/internal/functions/system"
-	"github.com/stratos/cliche/internal/types"
+	"github.com/friday/internal/functions/debugging"
+	"github.com/friday/internal/functions/network"
+	"github.com/friday/internal/functions/system"
+	"github.com/friday/internal/types"
 	"go.uber.org/zap"
 )
 

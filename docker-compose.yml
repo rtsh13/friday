@@ -18,14 +18,14 @@ services:
               count: 1
               capabilities: [gpu]
     volumes:
-      - D:/CLIche/FineTuning/merged_3b_fp16:/models/cliche
+      - D:/friday/FineTuning/merged_3b_fp16:/models/friday
     ports:
       - "8000:8000"
     environment:
       - NVIDIA_VISIBLE_DEVICES=0
       - VLLM_USE_V1=0
     command: >
-      --model /models/cliche
+      --model /models/friday
       --dtype half
       --max-model-len 1024
       --gpu-memory-utilization 0.95

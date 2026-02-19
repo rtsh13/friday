@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stratos/cliche/internal/functions/network"
+	"github.com/friday/internal/functions/network"
 )
 
 func TestParseSSOutput_EstablishedConnection(t *testing.T) {

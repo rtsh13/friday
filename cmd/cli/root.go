@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/friday/internal/agent"
+	"github.com/friday/internal/config"
+	"github.com/friday/internal/ui"
 	"github.com/spf13/cobra"
-	"github.com/stratos/cliche/internal/agent"
-	"github.com/stratos/cliche/internal/config"
-	"github.com/stratos/cliche/internal/ui"
 	"go.uber.org/zap"
 )
 
@@ -22,21 +22,21 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "cliche [query]",
-	Short: "AI-powered DevOps debugging assistant",
+	Use:   "friday [query]",
+	Short: "AI-powered debugging assistant",
 	Long: `
-  ██████╗██╗     ██╗ ██████╗██╗  ██╗███████╗
- ██╔════╝██║     ██║██╔════╝██║  ██║██╔════╝
- ██║     ██║     ██║██║     ███████║█████╗  
- ██║     ██║     ██║██║     ██╔══██║██╔══╝  
- ╚██████╗███████╗██║╚██████╗██║  ██║███████╗
-  ╚═════╝╚══════╝╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝
+███████╗██████╗ ██╗██████╗  █████╗ ██╗   ██╗
+██╔════╝██╔══██╗██║██╔══██╗██╔══██╗╚██╗ ██╔╝
+█████╗  ██████╔╝██║██║  ██║███████║ ╚████╔╝ 
+██╔══╝  ██╔══██╗██║██║  ██║██╔══██║  ╚██╔╝  
+██║     ██║  ██║██║██████╔╝██║  ██║   ██║   
+╚═╝     ╚═╝  ╚═╝╚═╝╚═════╝ ╚═╝  ╚═╝   ╚═╝  
 
   AI-powered CLI tool for debugging DevOps and network issues.
 
 Usage:
-  cliche "Check gRPC health on port 50051"
-  cliche --it`,
+  friday "Check gRPC health on port 50051"
+  friday --it`,
 
 	Run: func(cmd *cobra.Command, args []string) {
 		if interactive {

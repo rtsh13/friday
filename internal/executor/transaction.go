@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/stratos/cliche/internal/types"
+	"github.com/friday/internal/types"
 )
 
 // Phase constants matching functions.yaml phase field values.

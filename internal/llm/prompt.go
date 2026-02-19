@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/stratos/cliche/internal/types"
+	"github.com/friday/internal/types"
 )
 
 const defaultMasterPromptPath = "master_prompt.txt"

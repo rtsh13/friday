@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stratos/cliche/internal/functions/network"
+	"github.com/friday/internal/functions/network"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	"google.golang.org/grpc/health/grpc_health_v1"

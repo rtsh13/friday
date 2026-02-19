@@ -3,7 +3,7 @@ package context
 import (
 	"sync"
 
-	"github.com/stratos/cliche/internal/types"
+	"github.com/friday/internal/types"
 )
 
 type Manager struct {

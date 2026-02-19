@@ -3,7 +3,7 @@ package functions
 import (
 	"os"
 
-	"github.com/stratos/cliche/internal/types"
+	"github.com/friday/internal/types"
 	"gopkg.in/yaml.v3"
 )
 

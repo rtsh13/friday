@@ -1,4 +1,4 @@
-// Package ui provides the terminal interface for CLICHE.
+// Package ui provides the terminal interface for friday.
 package ui
 
 import (
@@ -14,7 +14,7 @@ import (
 	"unicode"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/stratos/cliche/internal/types"
+	"github.com/friday/internal/types"
 )
 
 // Agent is the interface ui needs from the agent package.
@@ -66,7 +66,7 @@ func Run(agent Agent) {
 	}
 }
 
-// RunOneShot runs a single query and exits -- used by `projectx "query"`.
+// RunOneShot runs a single query and exits -- used by `Friday "query"`.
 func RunOneShot(agent Agent, query string) {
 	styles := DefaultStyles()
 	fmt.Println()

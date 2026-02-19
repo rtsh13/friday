@@ -17,7 +17,7 @@ onnx:
 
 llm:
   endpoint: http://localhost:8000/v1
-  model: /models/cliche
+  model: /models/friday
   temperature: 0.1
   max_tokens: 512
   timeout_seconds: 60

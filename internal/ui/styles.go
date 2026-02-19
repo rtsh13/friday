@@ -4,7 +4,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Theme defines the visual style for CLICHE.
+// Theme defines the visual style for friday.
 type Theme struct {
 	Primary   lipgloss.Color
 	Secondary lipgloss.Color

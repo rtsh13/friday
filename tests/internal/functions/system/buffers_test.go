@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stratos/cliche/internal/functions/system"
+	"github.com/friday/internal/functions/system"
 )
 
 // TestInspectNetworkBuffers_SuccessfulRead tests successful reading of buffer values

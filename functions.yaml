@@ -4,7 +4,7 @@ metadata:
   total_functions: 21
 
 functions:
-  # ==================== BASIC NETWORK TOOLS (from CLIche) ====================
+  # ==================== BASIC NETWORK TOOLS (from friday) ====================
   
   - name: ping
     description: "Send ICMP ping to check if a host is reachable. Returns latency and packet loss info."

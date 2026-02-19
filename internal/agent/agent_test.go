@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stratos/cliche/internal/config"
-	"github.com/stratos/cliche/internal/types"
+	"github.com/friday/internal/config"
+	"github.com/friday/internal/types"
 )
 
 func TestTruncate(t *testing.T) {

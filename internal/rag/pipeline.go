@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/stratos/cliche/internal/config"
-	"github.com/stratos/cliche/internal/types"
+	"github.com/friday/internal/config"
+	"github.com/friday/internal/types"
 	"go.uber.org/zap"
 )
 

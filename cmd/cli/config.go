@@ -5,8 +5,8 @@ import (
 	"os"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/friday/internal/config"
 	"github.com/spf13/cobra"
-	"github.com/stratos/cliche/internal/config"
 	"gopkg.in/yaml.v3"
 )
 

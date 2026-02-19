@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stratos/cliche/internal/executor"
-	"github.com/stratos/cliche/internal/types"
+	"github.com/friday/internal/executor"
+	"github.com/friday/internal/types"
 	"go.uber.org/zap"
 )
 

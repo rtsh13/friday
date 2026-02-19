@@ -1,4 +1,4 @@
-module github.com/stratos/cliche
+module github.com/friday
 
 go 1.24.2
 

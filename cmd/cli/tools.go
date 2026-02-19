@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/friday/internal/functions"
 	"github.com/spf13/cobra"
-	"github.com/stratos/cliche/internal/functions"
 )
 
 var toolsCmd = &cobra.Command{
@@ -17,8 +17,8 @@ These tools are automatically used by the AI agent when analyzing
 your infrastructure. You can also reference them directly in queries.
 
 Examples:
-  cliche tools           # List all tools
-  cliche tools --verbose # Show detailed info`,
+  friday tools           # List all tools
+  friday tools --verbose # Show detailed info`,
 	Run: func(cmd *cobra.Command, args []string) {
 		runTools()
 	},

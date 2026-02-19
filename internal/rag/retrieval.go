@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/friday/internal/types"
 	"github.com/qdrant/go-client/qdrant"
-	"github.com/stratos/cliche/internal/types"
 	"go.uber.org/zap"
 )
 
