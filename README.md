@@ -5,7 +5,6 @@
 [![Dashboard](https://img.shields.io/badge/Dashboard-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://tgifriday.vercel.app)
 [![DocLM](https://img.shields.io/badge/DocLM-FF375F?style=for-the-badge&logo=huggingface&logoColor=white)](https://huggingface.co/ashutoshrp06/DocLM)
 [![Go](https://img.shields.io/badge/Go_1.24.2-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://go.dev/)
-[![Qwen2.5-Coder-3B](https://img.shields.io/badge/Qwen2.5--Coder--3B-7C3AED?style=for-the-badge&logo=alibabacloud&logoColor=white)](https://huggingface.co/Qwen/Qwen2.5-Coder-3B)
 
 **Friday** is a production-grade, single-executable CLI tool for network engineers. It combines a fine-tuned large language model (**DocLM**), a fully local RAG pipeline, and an atomic transaction engine to diagnose complex network failures and apply fixes — with guaranteed rollback on failure. All inference runs locally. Not one byte of diagnostic data ever leaves your infrastructure.
 
